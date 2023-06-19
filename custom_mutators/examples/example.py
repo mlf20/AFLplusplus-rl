@@ -23,6 +23,10 @@ COMMANDS = [
     b"DEL",
     b"AAAAAAAAAAAAAAAAA",
 ]
+# actions 
+MAX_ACTIONS = 24
+
+GLOBAL_ARRAY = []
 
 
 def init(seed):
@@ -33,6 +37,7 @@ def init(seed):
     @param seed: A 32-bit random value
     """
     random.seed(seed)
+    GLOBAL_ARRAY.append(1)
 
 
 def deinit():
@@ -57,10 +62,40 @@ def fuzz(buf, add_buf, max_size):
     @return: A new bytearray containing the mutated data
     """
     ret = bytearray(100)
-
-    ret[:3] = random.choice(COMMANDS)
+    print(GLOBAL_ARRAY)
+    GLOBAL_ARRAY.append(1)
+    #ret[:3] = random.choice(COMMANDS)
+    ret = bytearray(random.randint(MAX_ACTIONS))
 
     return ret
+
+
+# actions (24 possible actions): 
+# flip single bit 
+# set interesting byte value
+# set word (2 bytes) to interesting value, little endian. 
+# Set word to interesting value, big endian. 
+# Set dword to interesting value, big endian.
+# Randomly subtract from byte.
+# Randomly add to byte. 
+# Randomly subtract from word, little endian
+# Randomly subtract from word, big endian
+# Randomly add to word, little endian
+# Randomly add to word, big endian
+# Randomly subtract from dword, little endian
+# Randomly subtract from dword, big endian
+# Randomly add to dword, little endian
+# Randomly add to dword, big endian.
+# Just set a random byte to a random value. Because, why not. We use XOR with 1-255 to eliminate the possibility of a no-op.
+# Clone bytes
+# Insert a block of constant bytes (25%).
+# Overwrite bytes with a randomly selected chunk bytes. 
+# Overwrite bytes with fixed bytes.
+# Increase byte by 1.
+# Decrease byte by 1.
+# Flip byte.
+# Switch bytes.
+# Delete bytes 
 
 
 # Uncomment and implement the following methods if you want to use a custom
