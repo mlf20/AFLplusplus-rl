@@ -2097,7 +2097,7 @@ havoc_stage:
 
   havoc_queued = afl->queued_items;
 
-  if (afl->custom_mutators_count) {
+  /* if (afl->custom_mutators_count) {
 
     LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
@@ -2118,40 +2118,13 @@ havoc_stage:
 
     });
 
-  }
+  } */
 
   /* We essentially just do several thousand runs (depending on perf_score)
      where we take the input file and make random stacked tweaks. */
 
 #define MAX_HAVOC_ENTRY 64
 #define MUTATE_ASCII_DICT 64
-
-  u32 r_max, r;
-
-  r_max = (MAX_HAVOC_ENTRY + 1) + (afl->extras_cnt ? 4 : 0) +
-          (afl->a_extras_cnt
-               ? (unlikely(afl->cmplog_binary && afl->queue_cur->is_ascii)
-                      ? MUTATE_ASCII_DICT
-                      : 4)
-               : 0);
-
-  if (unlikely(afl->expand_havoc && afl->ready_for_splicing_count > 1)) {
-
-    /* add expensive havoc cases here, they are activated after a full
-       cycle without finds happened */
-
-    r_max += 4;
-
-  }
-
-  if (unlikely(get_cur_time() - afl->last_find_time > 5000 /* 5 seconds */ &&
-               afl->ready_for_splicing_count > 1)) {
-
-    /* add expensive havoc cases here if there is no findings in the last 5s */
-
-    r_max += 4;
-
-  }
 
   for (afl->stage_cur = 0; afl->stage_cur < afl->stage_max; ++afl->stage_cur) {
 
@@ -2166,6 +2139,8 @@ havoc_stage:
 
     for (i = 0; i < use_stacking; ++i) {
 
+      /*
+      becomes redundant as will will always use the agent
       if (afl->custom_mutators_count) {
 
         LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
@@ -2182,28 +2157,20 @@ havoc_stage:
 
             }
 
-            if (likely(new_len > 0 && custom_havoc_buf)) {
-
-              temp_len = new_len;
-              if (out_buf != custom_havoc_buf) {
-
-                out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
-                if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
-                memcpy(out_buf, custom_havoc_buf, temp_len);
-
-              }
-
-            }
-
           }
-
+          
         });
 
-      }
+      } */
+      u32 r;
 
-      switch ((r = rand_below(afl, r_max))) {
+      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+        r = el->afl_custom_havoc_mutation_probability(el->data);
+      });
 
-        case 0 ... 3: {
+      switch (r) {
+
+        case 0: {
 
           /* Flip a single bit somewhere. Spooky! */
 
@@ -2216,7 +2183,7 @@ havoc_stage:
 
         }
 
-        case 4 ... 7: {
+        case 1: {
 
           /* Set byte to interesting value. */
 
@@ -2230,7 +2197,7 @@ havoc_stage:
 
         }
 
-        case 8 ... 9: {
+        case 2: {
 
           /* Set word to interesting value, little endian. */
 
@@ -2247,7 +2214,7 @@ havoc_stage:
 
         }
 
-        case 10 ... 11: {
+        case 3: {
 
           /* Set word to interesting value, big endian. */
 
@@ -2264,7 +2231,7 @@ havoc_stage:
 
         }
 
-        case 12 ... 13: {
+        case 4: {
 
           /* Set dword to interesting value, little endian. */
 
@@ -2281,7 +2248,7 @@ havoc_stage:
 
         }
 
-        case 14 ... 15: {
+        case 5: {
 
           /* Set dword to interesting value, big endian. */
 
@@ -2298,7 +2265,7 @@ havoc_stage:
 
         }
 
-        case 16 ... 19: {
+        case 6: {
 
           /* Randomly subtract from byte. */
 
@@ -2311,7 +2278,7 @@ havoc_stage:
 
         }
 
-        case 20 ... 23: {
+        case 7: {
 
           /* Randomly add to byte. */
 
@@ -2324,7 +2291,7 @@ havoc_stage:
 
         }
 
-        case 24 ... 25: {
+        case 8: {
 
           /* Randomly subtract from word, little endian. */
 
@@ -2342,7 +2309,7 @@ havoc_stage:
 
         }
 
-        case 26 ... 27: {
+        case 9: {
 
           /* Randomly subtract from word, big endian. */
 
@@ -2363,7 +2330,7 @@ havoc_stage:
 
         }
 
-        case 28 ... 29: {
+        case 10: {
 
           /* Randomly add to word, little endian. */
 
@@ -2381,7 +2348,7 @@ havoc_stage:
 
         }
 
-        case 30 ... 31: {
+        case 11: {
 
           /* Randomly add to word, big endian. */
 
@@ -2402,7 +2369,7 @@ havoc_stage:
 
         }
 
-        case 32 ... 33: {
+        case 12: {
 
           /* Randomly subtract from dword, little endian. */
 
@@ -2420,7 +2387,7 @@ havoc_stage:
 
         }
 
-        case 34 ... 35: {
+        case 13: {
 
           /* Randomly subtract from dword, big endian. */
 
@@ -2441,7 +2408,7 @@ havoc_stage:
 
         }
 
-        case 36 ... 37: {
+        case 14: {
 
           /* Randomly add to dword, little endian. */
 
@@ -2459,7 +2426,7 @@ havoc_stage:
 
         }
 
-        case 38 ... 39: {
+        case 15: {
 
           /* Randomly add to dword, big endian. */
 
@@ -2480,7 +2447,7 @@ havoc_stage:
 
         }
 
-        case 40 ... 43: {
+        case 16: {
 
           /* Just set a random byte to a random value. Because,
              why not. We use XOR with 1-255 to eliminate the
@@ -2495,7 +2462,7 @@ havoc_stage:
 
         }
 
-        case 44 ... 46: {
+        case 17: {
 
           if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
 
@@ -2536,7 +2503,7 @@ havoc_stage:
 
         }
 
-        case 47: {
+        case 18: {
 
           if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
 
@@ -2579,7 +2546,7 @@ havoc_stage:
 
         }
 
-        case 48 ... 50: {
+        case 19: {
 
           /* Overwrite bytes with a randomly selected chunk bytes. */
 
@@ -2604,7 +2571,7 @@ havoc_stage:
 
         }
 
-        case 51: {
+        case 20: {
 
           /* Overwrite bytes with fixed bytes. */
 
@@ -2627,7 +2594,7 @@ havoc_stage:
 
         }
 
-        case 52: {
+        case 21: {
 
           /* Increase byte by 1. */
 
@@ -2640,7 +2607,7 @@ havoc_stage:
 
         }
 
-        case 53: {
+        case 22: {
 
           /* Decrease byte by 1. */
 
@@ -2653,7 +2620,7 @@ havoc_stage:
 
         }
 
-        case 54: {
+        case 23: {
 
           /* Flip byte. */
 
@@ -2666,7 +2633,7 @@ havoc_stage:
 
         }
 
-        case 55 ... 56: {
+        case 24: {
 
           if (temp_len < 4) { break; }
 
@@ -2719,7 +2686,7 @@ havoc_stage:
         }
 
         // MAX_HAVOC_ENTRY = 64
-        case 57 ... MAX_HAVOC_ENTRY: {
+        case 25: {
 
           /* Delete bytes. */
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 """
 Example Python Module for AFLFuzz
@@ -24,7 +24,7 @@ COMMANDS = [
     b"AAAAAAAAAAAAAAAAA",
 ]
 # actions 
-MAX_ACTIONS = 24
+MAX_ACTIONS = 25
 
 GLOBAL_ARRAY = []
 
@@ -65,12 +65,39 @@ def fuzz(buf, add_buf, max_size):
     print(GLOBAL_ARRAY)
     GLOBAL_ARRAY.append(1)
     #ret[:3] = random.choice(COMMANDS)
-    ret = bytearray(random.randint(MAX_ACTIONS))
+    ret = bytearray(random.randint(0, MAX_ACTIONS))
 
     return ret
 
+def havoc_mutation(buf, max_size):
+    '''
+    Perform a single custom mutation on a given input.
 
-# actions (24 possible actions): 
+    @type buf: bytearray
+    @param buf: The buffer that should be mutated.
+
+    @type max_size: int
+    @param max_size: Maximum size of the mutated output. The mutation must not
+        produce data larger than max_size.
+
+    @rtype: bytearray
+    @return: A new bytearray containing the mutated data
+    '''
+
+    return mutated_buf
+
+def havoc_mutation_probability():
+    '''
+    Called for each `havoc_mutation`. Return the probability (in percentage)
+    that `havoc_mutation` is called in havoc. Be default it is 6%.
+
+    @rtype: int
+    @return: The probability (0-100)
+    '''
+    prob = random.randint(0, MAX_ACTIONS)
+    return prob
+
+# actions (25 possible actions): 
 # flip single bit 
 # set interesting byte value
 # set word (2 bytes) to interesting value, little endian. 
@@ -81,6 +108,7 @@ def fuzz(buf, add_buf, max_size):
 # Randomly subtract from word, little endian
 # Randomly subtract from word, big endian
 # Randomly add to word, little endian
+
 # Randomly add to word, big endian
 # Randomly subtract from dword, little endian
 # Randomly subtract from dword, big endian
@@ -91,6 +119,7 @@ def fuzz(buf, add_buf, max_size):
 # Insert a block of constant bytes (25%).
 # Overwrite bytes with a randomly selected chunk bytes. 
 # Overwrite bytes with fixed bytes.
+
 # Increase byte by 1.
 # Decrease byte by 1.
 # Flip byte.
@@ -169,32 +198,7 @@ def fuzz(buf, add_buf, max_size):
 #     '''
 #     return buf
 #
-# def havoc_mutation(buf, max_size):
-#     '''
-#     Perform a single custom mutation on a given input.
-#
-#     @type buf: bytearray
-#     @param buf: The buffer that should be mutated.
-#
-#     @type max_size: int
-#     @param max_size: Maximum size of the mutated output. The mutation must not
-#         produce data larger than max_size.
-#
-#     @rtype: bytearray
-#     @return: A new bytearray containing the mutated data
-#     '''
-#     return mutated_buf
-#
-# def havoc_mutation_probability():
-#     '''
-#     Called for each `havoc_mutation`. Return the probability (in percentage)
-#     that `havoc_mutation` is called in havoc. Be default it is 6%.
-#
-#     @rtype: int
-#     @return: The probability (0-100)
-#     '''
-#     return prob
-#
+
 # def queue_get(filename):
 #     '''
 #     Called at the beginning of each fuzz iteration to determine whether the
