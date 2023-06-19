@@ -1908,7 +1908,7 @@ custom_mutator_stage:
    * CUSTOM MUTATORS *
    *******************/
 
-  if (likely(!afl->custom_mutators_count)) { goto havoc_stage; }
+  /*if (likely(!afl->custom_mutators_count)) { goto havoc_stage; }
 
   afl->stage_name = "custom mutator";
   afl->stage_short = "custom";
@@ -1959,13 +1959,11 @@ custom_mutator_stage:
           u8                 *new_buf = NULL;
           u32                 target_len = 0;
 
-          /* check if splicing makes sense yet (enough entries) */
+          
           if (likely(!afl->custom_splice_optout &&
                      afl->ready_for_splicing_count > 1)) {
 
-            /* Pick a random other queue entry for passing to external API
-               that has the necessary length */
-
+          
             do {
 
               tid = rand_below(afl, afl->queued_items);
@@ -1977,7 +1975,6 @@ custom_mutator_stage:
             target = afl->queue_buf[tid];
             afl->splicing_with = tid;
 
-            /* Read the additional testcase into a new buffer. */
             new_buf = queue_testcase_get(afl, target);
             target_len = target->len;
 
@@ -2006,9 +2003,7 @@ custom_mutator_stage:
 
             if (!el->afl_custom_fuzz_count) {
 
-              /* If we're finding new stuff, let's run for a bit longer, limits
-                permitting. */
-
+          
               if (afl->queued_items != havoc_queued) {
 
                 if (perf_score <= afl->havoc_max_mult * 100) {
@@ -2026,7 +2021,7 @@ custom_mutator_stage:
 
           }
 
-          /* out_buf may have been changed by the call to custom_fuzz */
+         
           memcpy(out_buf, in_buf, len);
 
         }
@@ -2047,7 +2042,7 @@ custom_mutator_stage:
   afl->stage_cycles[STAGE_CUSTOM_MUTATOR] += afl->stage_cur;
 #ifdef INTROSPECTION
   afl->queue_cur->stats_mutated += afl->stage_max;
-#endif
+#endif */
 
   /****************
    * RANDOM HAVOC *
@@ -2165,7 +2160,7 @@ havoc_stage:
       u32 r;
 
       LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-        r = el->afl_custom_havoc_mutation_probability(el->data);
+        r = el->afl_custom_havoc_mutation_action(el->data);
       });
 
       switch (r) {
@@ -2932,7 +2927,7 @@ havoc_stage:
     memcpy(out_buf, in_buf, len);
 
     /* If we're finding new stuff, let's run for a bit longer, limits
-       permitting. */
+       permitting. [COVERAGE INCREASED]*/
 
     if (afl->queued_items != havoc_queued) {
 
@@ -5341,7 +5336,9 @@ pacemaker_fuzzing:
         memcpy(out_buf, in_buf, len);
 
         /* If we're finding new stuff, let's run for a bit longer, limits
-           permitting. */
+           permitting.  [COVERAGE INCREASED]*/
+
+
 
         if (afl->queued_items != havoc_queued) {
 

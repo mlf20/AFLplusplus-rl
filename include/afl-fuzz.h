@@ -994,6 +994,16 @@ struct custom_mutator {
   u8 (*afl_custom_havoc_mutation_probability)(void *data);
 
   /**
+   * Return the mutation action that will be taken in the havoc stage of fuzzing
+   *
+   * (Optional)
+   *
+   * @param data pointer returned in afl_custom_init by this custom mutator
+   * @return The probability (0-100).
+   */
+  u8 (*afl_custom_havoc_mutation_action)(void *data);
+
+  /**
    * Determine whether the fuzzer should fuzz the current queue entry or not.
    *
    * (Optional)

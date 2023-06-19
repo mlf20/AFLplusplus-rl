@@ -15,6 +15,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 """
 
 import random
+import numpy as np
 
 
 COMMANDS = [
@@ -27,6 +28,9 @@ COMMANDS = [
 MAX_ACTIONS = 25
 
 GLOBAL_ARRAY = []
+
+STATE = []
+
 
 
 def init(seed):
@@ -41,7 +45,8 @@ def init(seed):
 
 
 def deinit():
-    pass
+    GLOBAL_ARRAY = []
+    print(len(GLOBAL_ARRAY))
 
 
 def fuzz(buf, add_buf, max_size):
@@ -96,6 +101,22 @@ def havoc_mutation_probability():
     '''
     prob = random.randint(0, MAX_ACTIONS)
     return prob
+
+def havoc_mutation_action():
+    '''
+    Called for each `havoc_mutation`. Return the probability (in percentage)
+    that `havoc_mutation` is called in havoc. Be default it is 6%.
+
+    @rtype: int
+    @return: The probability (0-100)
+    '''
+    prob = random.randint(0, MAX_ACTIONS)
+    return prob
+
+def introspection(data):
+    print(data)
+    string = ''
+    return string
 
 # actions (25 possible actions): 
 # flip single bit 
