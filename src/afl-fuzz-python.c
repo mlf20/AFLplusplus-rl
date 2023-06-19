@@ -245,6 +245,8 @@ static py_mutator_t *init_py_module(afl_state_t *afl, u8 *module_name) {
         PyObject_GetAttrString(py_module, "havoc_mutation");
     py_functions[PY_FUNC_HAVOC_MUTATION_PROBABILITY] =
         PyObject_GetAttrString(py_module, "havoc_mutation_probability");
+          py_functions[PY_FUNC_HAVOC_MUTATION_ACTION] =
+        PyObject_GetAttrString(py_module, "havoc_mutation_action");
     py_functions[PY_FUNC_QUEUE_GET] =
         PyObject_GetAttrString(py_module, "queue_get");
     py_functions[PY_FUNC_FUZZ_SEND] =
@@ -453,6 +455,13 @@ struct custom_mutator *load_custom_mutator_py(afl_state_t *afl,
 
     mutator->afl_custom_havoc_mutation_probability =
         havoc_mutation_probability_py;
+
+  }
+
+  if (py_functions[PY_FUNC_HAVOC_MUTATION_ACTION]) {
+
+    mutator->afl_custom_havoc_mutation_action =
+        havoc_mutation_action_py;
 
   }
 
@@ -803,6 +812,32 @@ u8 havoc_mutation_probability_py(void *py_mutator) {
   py_value = PyObject_CallObject(
       ((py_mutator_t *)py_mutator)
           ->py_functions[PY_FUNC_HAVOC_MUTATION_PROBABILITY],
+      py_args);
+  Py_DECREF(py_args);
+
+  if (py_value != NULL) {
+
+    long prob = PyLong_AsLong(py_value);
+    Py_DECREF(py_value);
+    return (u8)prob;
+
+  } else {
+
+    PyErr_Print();
+    FATAL("Call failed");
+
+  }
+
+}
+
+u8 havoc_mutation_action_py(void *py_mutator) {
+
+  PyObject *py_args, *py_value;
+
+  py_args = PyTuple_New(0);
+  py_value = PyObject_CallObject(
+      ((py_mutator_t *)py_mutator)
+          ->py_functions[PY_FUNC_HAVOC_MUTATION_ACTION],
       py_args);
   Py_DECREF(py_args);
 
