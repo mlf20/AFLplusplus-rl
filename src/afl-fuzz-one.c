@@ -2129,7 +2129,8 @@ havoc_stage:
 
     /* FIXME: ADD RESET FUNCTION */
     LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-        el->afl_custom_havoc_mutation_reset(el->data);
+
+      el->afl_custom_havoc_mutation_reset(el->data);
     });
 
 #ifdef INTROSPECTION
