@@ -42,11 +42,13 @@ def init(seed):
     """
     random.seed(seed)
     GLOBAL_ARRAY.append(1)
+    print('INIT STARTED')
 
 
 def deinit():
     GLOBAL_ARRAY = []
     print(len(GLOBAL_ARRAY))
+    print('DEINIT STARTED')
 
 
 def fuzz(buf, add_buf, max_size):
@@ -104,11 +106,13 @@ def havoc_mutation_probability():
 
 def havoc_mutation_action(buf):
     '''
-    Called for each `havoc_mutation`. Return the probability (in percentage)
-    that `havoc_mutation` is called in havoc. Be default it is 6%.
+    Called for each `havoc_mutation`. 
+    For a given buffer return the mutation action to be taken by AFL.
+    @type buf: bytearray
+    @param buf: The buffer that should be mutated.
 
     @rtype: int
-    @return: The probability (0-100)
+    @return: The action (0-24)
     '''
     byte_list = list(buf)
     hex_list = ''.join([str(hex(x).split('x')[-1])for x in byte_list])
@@ -119,18 +123,12 @@ def havoc_mutation_action(buf):
 
 def havoc_mutation_reset():
     '''
-    Called for each `havoc_mutation`. Return the probability (in percentage)
-    that `havoc_mutation` is called in havoc. Be default it is 6%.
+    Called for each `havoc_mutation`. Reset the python
 
     @rtype: int
     @return: The probability (0-100)
     '''
-    byte_list = list(buf)
-    hex_list = ''.join([str(hex(x).split('x')[-1])for x in byte_list])
-    #print(hex_list)
 
-    prob = random.randint(0, MAX_ACTIONS)
-    return prob
 
 
 def introspection():
