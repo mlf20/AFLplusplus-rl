@@ -249,6 +249,8 @@ static py_mutator_t *init_py_module(afl_state_t *afl, u8 *module_name) {
         PyObject_GetAttrString(py_module, "havoc_mutation_action");
     py_functions[PY_FUNC_HAVOC_MUTATION_RESET] =
         PyObject_GetAttrString(py_module, "havoc_mutation_reset");
+    py_functions[PY_FUNC_HAVOC_MUTATION_REWARD] =
+        PyObject_GetAttrString(py_module, "havoc_mutation_reward");
     py_functions[PY_FUNC_QUEUE_GET] =
         PyObject_GetAttrString(py_module, "queue_get");
     py_functions[PY_FUNC_FUZZ_SEND] =
@@ -471,6 +473,13 @@ struct custom_mutator *load_custom_mutator_py(afl_state_t *afl,
 
     mutator->afl_custom_havoc_mutation_reset =
         havoc_mutation_reset_py;
+
+  }
+
+  if (py_functions[PY_FUNC_HAVOC_MUTATION_REWARD]) {
+
+    mutator->afl_custom_havoc_mutation_reward =
+        havoc_mutation_reward_py;
 
   }
 
@@ -839,7 +848,7 @@ u8 havoc_mutation_probability_py(void *py_mutator) {
 
 }
 
-u8 havoc_mutation_action_py(void *py_mutator, const u8 *buf, size_t buf_size) {
+u8 havoc_mutation_action_py(void *py_mutator, const u8 *buf, size_t buf_size ) {
 
   PyObject *py_args, *py_value;
 
@@ -890,6 +899,53 @@ void havoc_mutation_reset_py(void *py_mutator) {
 
   if (py_value != NULL) { 
     Py_DECREF(py_value); 
+  } else {
+
+    PyErr_Print();
+    FATAL("Call failed");
+
+  }
+
+}
+
+void havoc_mutation_reward_py(void *py_mutator, const u8 *bit_change, size_t bit_change_size, const u8 *virgin_bits, size_t virgin_bits_size) {
+
+  PyObject *py_args, *py_value;
+
+
+  py_args = PyTuple_New(2);
+
+  /* bit_change */
+  py_value = PyByteArray_FromStringAndSize(bit_change, bit_change_size);
+  if (!py_value) {
+
+    Py_DECREF(py_args);
+    FATAL("Failed to convert arguments");
+
+  }
+  PyTuple_SetItem(py_args, 0, py_value);
+
+  /* virgin_bits */
+  py_value = PyByteArray_FromStringAndSize(virgin_bits, virgin_bits_size);
+  if (!py_value) {
+
+    Py_DECREF(py_args);
+    FATAL("Failed to convert arguments");
+
+  }
+  PyTuple_SetItem(py_args, 1, py_value);
+
+
+
+  
+  py_value = PyObject_CallObject(
+      ((py_mutator_t *)py_mutator)->py_functions[PY_FUNC_HAVOC_MUTATION_REWARD],py_args);
+
+  Py_DECREF(py_args);
+
+  if (py_value != NULL) {
+    Py_DECREF(py_value);
+
   } else {
 
     PyErr_Print();

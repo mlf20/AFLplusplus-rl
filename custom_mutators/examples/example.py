@@ -128,7 +128,14 @@ def havoc_mutation_reset():
     @rtype: int
     @return: The probability (0-100)
     '''
+    
+def havoc_mutation_reward(bit_change, virgin_bits):
+    '''
+    Called for each `havoc_mutation`. Reset the python
 
+    @rtype: int
+    @return: The probability (0-100)
+    '''
 
 
 def introspection():

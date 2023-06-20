@@ -2924,8 +2924,20 @@ havoc_stage:
     }
 
     if (common_fuzz_stuff(afl, out_buf, temp_len)) { goto abandon_entry; }
+    /*u8 afl->bitmap_changed
+    u32 afl->fsrv.trace_bits
+    u32 afl->fsrv.map_size
+    u8 afl->virgin_bits*/
 
+    size_t bitmap_size = sizeof(afl->bitmap_changed);
+    size_t virgin_bits = sizeof(afl->virgin_bits);
+    //size_t map_size_size = sizeof(afl->fsrv.map_size);
     /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON */
+
+      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+
+      el->afl_custom_havoc_mutation_reward(el->data, &afl->bitmap_changed, bitmap_size, afl->virgin_bits, virgin_bits);
+    });
 
     /* out_buf might have been mangled a bit, so let's restore it to its
        original size and shape. */
