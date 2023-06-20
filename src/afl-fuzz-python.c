@@ -888,7 +888,14 @@ void havoc_mutation_reset_py(void *py_mutator) {
   Py_DECREF(py_args);
 
 
-  if (py_value != NULL) { Py_DECREF(py_value); }
+  if (py_value != NULL) { 
+    Py_DECREF(py_value); 
+  } else {
+
+    PyErr_Print();
+    FATAL("Call failed");
+
+  }
 
 }
 
