@@ -247,7 +247,7 @@ static py_mutator_t *init_py_module(afl_state_t *afl, u8 *module_name) {
         PyObject_GetAttrString(py_module, "havoc_mutation_probability");
     py_functions[PY_FUNC_HAVOC_MUTATION_ACTION] =
         PyObject_GetAttrString(py_module, "havoc_mutation_action");
-          py_functions[PY_FUNC_HAVOC_MUTATION_RESET] =
+    py_functions[PY_FUNC_HAVOC_MUTATION_RESET] =
         PyObject_GetAttrString(py_module, "havoc_mutation_reset");
     py_functions[PY_FUNC_QUEUE_GET] =
         PyObject_GetAttrString(py_module, "queue_get");
@@ -883,7 +883,7 @@ void havoc_mutation_reset_py(void *py_mutator) {
   py_args = PyTuple_New(0);
   py_value = PyObject_CallObject(
       ((py_mutator_t *)py_mutator)
-          ->py_functions[PY_FUNC_HAVOC_MUTATION_PROBABILITY],
+          ->py_functions[PY_FUNC_HAVOC_MUTATION_RESET],
       py_args);
   Py_DECREF(py_args);
 
