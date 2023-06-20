@@ -2127,6 +2127,8 @@ havoc_stage:
 
     afl->stage_cur_val = use_stacking;
 
+    /* FIXME: ADD RESET FUNCTION */
+
 #ifdef INTROSPECTION
     snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
              afl->queue_cur->fname, use_stacking);
@@ -2160,7 +2162,8 @@ havoc_stage:
       u32 r;
 
       LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-        r = el->afl_custom_havoc_mutation_action(el->data);
+        /* FIXME: SEND SEED TO PYTHON */
+        r = el->afl_custom_havoc_mutation_action(el->data, out_buf, temp_len);
       });
 
       switch (r) {
@@ -2917,6 +2920,8 @@ havoc_stage:
     }
 
     if (common_fuzz_stuff(afl, out_buf, temp_len)) { goto abandon_entry; }
+
+    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON */
 
     /* out_buf might have been mangled a bit, so let's restore it to its
        original size and shape. */

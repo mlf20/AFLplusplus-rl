@@ -1090,7 +1090,7 @@ s32         post_trim_py(void *, u8);
 size_t      trim_py(void *, u8 **);
 size_t      havoc_mutation_py(void *, u8 *, size_t, u8 **, size_t);
 u8          havoc_mutation_probability_py(void *);
-u8          havoc_mutation_action_py(void *);
+u8          havoc_mutation_action_py(void *, u8 *, size_t);
 u8          queue_get_py(void *, const u8 *);
 const char *introspection_py(void *);
 u8          queue_new_entry_py(void *, const u8 *, const u8 *);

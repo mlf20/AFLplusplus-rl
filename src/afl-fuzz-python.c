@@ -830,15 +830,27 @@ u8 havoc_mutation_probability_py(void *py_mutator) {
 
 }
 
-u8 havoc_mutation_action_py(void *py_mutator) {
+u8 havoc_mutation_action_py(void *py_mutator, u8 *buf, size_t buf_size) {
 
   PyObject *py_args, *py_value;
 
-  py_args = PyTuple_New(0);
+
+  py_args = PyTuple_New(1);
+
+  /* buf */
+  py_value = PyByteArray_FromStringAndSize(buf, buf_size);
+  if (!py_value) {
+
+    Py_DECREF(py_args);
+    FATAL("Failed to convert arguments");
+
+  }
+  PyTuple_SetItem(py_args, 0, py_value);
+  
   py_value = PyObject_CallObject(
-      ((py_mutator_t *)py_mutator)
-          ->py_functions[PY_FUNC_HAVOC_MUTATION_ACTION],
+      ((py_mutator_t *)py_mutator)->py_functions[PY_FUNC_HAVOC_MUTATION_ACTION],
       py_args);
+
   Py_DECREF(py_args);
 
   if (py_value != NULL) {

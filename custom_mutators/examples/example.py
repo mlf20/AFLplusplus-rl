@@ -102,7 +102,7 @@ def havoc_mutation_probability():
     prob = random.randint(0, MAX_ACTIONS)
     return prob
 
-def havoc_mutation_action():
+def havoc_mutation_action(buf):
     '''
     Called for each `havoc_mutation`. Return the probability (in percentage)
     that `havoc_mutation` is called in havoc. Be default it is 6%.
@@ -110,11 +110,11 @@ def havoc_mutation_action():
     @rtype: int
     @return: The probability (0-100)
     '''
+    print(buf)
     prob = random.randint(0, MAX_ACTIONS)
     return prob
 
-def introspection(data):
-    print(data)
+def introspection():
     string = ''
     return string
 
