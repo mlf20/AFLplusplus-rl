@@ -2128,6 +2128,9 @@ havoc_stage:
     afl->stage_cur_val = use_stacking;
 
     /* FIXME: ADD RESET FUNCTION */
+    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+        el->afl_custom_havoc_mutation_reset(el->data);
+    });
 
 #ifdef INTROSPECTION
     snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
@@ -2162,7 +2165,7 @@ havoc_stage:
       u32 r;
 
       LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-        /* FIXME: SEND SEED TO PYTHON */
+        
         r = el->afl_custom_havoc_mutation_action(el->data, out_buf, temp_len);
       });
 

@@ -347,6 +347,7 @@ enum {
   /* 14 */ PY_FUNC_FUZZ_SEND,
   /* 15 */ PY_FUNC_SPLICE_OPTOUT,
   /* 16 */ PY_FUNC_HAVOC_MUTATION_ACTION,
+  /* 17 */ PY_FUNC_HAVOC_MUTATION_RESET,
   PY_FUNC_COUNT
 
 };
@@ -995,14 +996,26 @@ struct custom_mutator {
   u8 (*afl_custom_havoc_mutation_probability)(void *data);
 
   /**
-   * Return the mutation action that will be taken in the havoc stage of fuzzing
+   *  Given a buffer sample return the action
+   *  Return the mutation action that will be taken in the havoc stage of fuzzing
    *
    * (Optional)
    *
    * @param data pointer returned in afl_custom_init by this custom mutator
-   * @return The probability (0-100).
+   * @param[in] buf Pointer to the input data to be mutated and the mutated
+   *     output
+   * @param[in] buf_size Size of input data
+   * @return The action (0-25).
    */
-  u8 (*afl_custom_havoc_mutation_action)(void *data, u8 *buf, size_t buf_size);
+  u8 (*afl_custom_havoc_mutation_action)(void *data, const u8 *buf, size_t buf_size);
+  
+  /**
+   *  reset the python plugin state
+   *
+   * (Optional)
+   *
+   */
+  void (*afl_custom_havoc_mutation_reset)(void *data);
 
   /**
    * Determine whether the fuzzer should fuzz the current queue entry or not.
@@ -1091,6 +1104,7 @@ size_t      trim_py(void *, u8 **);
 size_t      havoc_mutation_py(void *, u8 *, size_t, u8 **, size_t);
 u8          havoc_mutation_probability_py(void *);
 u8          havoc_mutation_action_py(void *, const u8 *, size_t);
+void        havoc_mutation_reset_py(void *);
 u8          queue_get_py(void *, const u8 *);
 const char *introspection_py(void *);
 u8          queue_new_entry_py(void *, const u8 *, const u8 *);

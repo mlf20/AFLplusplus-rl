@@ -110,9 +110,28 @@ def havoc_mutation_action(buf):
     @rtype: int
     @return: The probability (0-100)
     '''
-    print(buf)
+    byte_list = list(buf)
+    hex_list = ''.join([str(hex(x).split('x')[-1])for x in byte_list])
+    #print(hex_list)
+
     prob = random.randint(0, MAX_ACTIONS)
     return prob
+
+def havoc_mutation_reset():
+    '''
+    Called for each `havoc_mutation`. Return the probability (in percentage)
+    that `havoc_mutation` is called in havoc. Be default it is 6%.
+
+    @rtype: int
+    @return: The probability (0-100)
+    '''
+    byte_list = list(buf)
+    hex_list = ''.join([str(hex(x).split('x')[-1])for x in byte_list])
+    #print(hex_list)
+
+    prob = random.randint(0, MAX_ACTIONS)
+    return prob
+
 
 def introspection():
     string = ''
