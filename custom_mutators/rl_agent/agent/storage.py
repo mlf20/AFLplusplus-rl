@@ -1,4 +1,5 @@
-import torch
+
+from torch import zeros, ones, stack, randperm
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 
@@ -9,25 +10,25 @@ def _flatten_helper(T, N, _tensor):
 class RolloutStorage(object):
     def __init__(self, num_steps, num_processes, obs_shape, action_space,
                  recurrent_hidden_state_size):
-        self.obs = torch.zeros(num_steps + 1, num_processes, *obs_shape)
-        self.recurrent_hidden_states = torch.zeros(
+        self.obs = zeros(num_steps + 1, num_processes, *obs_shape)
+        self.recurrent_hidden_states = zeros(
             num_steps + 1, num_processes, recurrent_hidden_state_size)
-        self.rewards = torch.zeros(num_steps, num_processes, 1)
-        self.value_preds = torch.zeros(num_steps + 1, num_processes, 1)
-        self.returns = torch.zeros(num_steps + 1, num_processes, 1)
-        self.action_log_probs = torch.zeros(num_steps, num_processes, 1)
+        self.rewards = zeros(num_steps, num_processes, 1)
+        self.value_preds = zeros(num_steps + 1, num_processes, 1)
+        self.returns = zeros(num_steps + 1, num_processes, 1)
+        self.action_log_probs = zeros(num_steps, num_processes, 1)
         if action_space.__class__.__name__ == 'Discrete':
             action_shape = 1
         else:
             action_shape = action_space.shape[0]
-        self.actions = torch.zeros(num_steps, num_processes, action_shape)
+        self.actions = zeros(num_steps, num_processes, action_shape)
         if action_space.__class__.__name__ == 'Discrete':
             self.actions = self.actions.long()
-        self.masks = torch.ones(num_steps + 1, num_processes, 1)
+        self.masks = ones(num_steps + 1, num_processes, 1)
 
         # Masks that indicate whether it's a true terminal state
         # or time limit end state
-        self.bad_masks = torch.ones(num_steps + 1, num_processes, 1)
+        self.bad_masks = ones(num_steps + 1, num_processes, 1)
 
         self.num_steps = num_steps
         self.step = 0
@@ -149,7 +150,7 @@ class RolloutStorage(object):
             "to be greater than or equal to the number of "
             "PPO mini batches ({}).".format(num_processes, num_mini_batch))
         num_envs_per_batch = num_processes // num_mini_batch
-        perm = torch.randperm(num_processes)
+        perm = randperm(num_processes)
         for start_ind in range(0, num_processes, num_envs_per_batch):
             obs_batch = []
             recurrent_hidden_states_batch = []
@@ -175,17 +176,17 @@ class RolloutStorage(object):
 
             T, N = self.num_steps, num_envs_per_batch
             # These are all tensors of size (T, N, -1)
-            obs_batch = torch.stack(obs_batch, 1)
-            actions_batch = torch.stack(actions_batch, 1)
-            value_preds_batch = torch.stack(value_preds_batch, 1)
-            return_batch = torch.stack(return_batch, 1)
-            masks_batch = torch.stack(masks_batch, 1)
-            old_action_log_probs_batch = torch.stack(
+            obs_batch = stack(obs_batch, 1)
+            actions_batch = stack(actions_batch, 1)
+            value_preds_batch = stack(value_preds_batch, 1)
+            return_batch = stack(return_batch, 1)
+            masks_batch = stack(masks_batch, 1)
+            old_action_log_probs_batch = stack(
                 old_action_log_probs_batch, 1)
-            adv_targ = torch.stack(adv_targ, 1)
+            adv_targ = stack(adv_targ, 1)
 
             # States is just a (N, -1) tensor
-            recurrent_hidden_states_batch = torch.stack(
+            recurrent_hidden_states_batch = stack(
                 recurrent_hidden_states_batch, 1).view(N, -1)
 
             # Flatten the (T, N, ...) tensors to (T * N, ...)

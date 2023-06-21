@@ -1,4 +1,4 @@
-import torch
+from torch import exp, clamp, min, max
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -63,12 +63,12 @@ class PPO():
                     obs_batch, recurrent_hidden_states_batch, masks_batch,
                     actions_batch)
 
-                ratio = torch.exp(action_log_probs -
+                ratio = exp(action_log_probs -
                                   old_action_log_probs_batch)
                 surr1 = ratio * adv_targ
-                surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
+                surr2 = clamp(ratio, 1.0 - self.clip_param,
                                     1.0 + self.clip_param) * adv_targ
-                action_loss = -torch.min(surr1, surr2).mean()
+                action_loss = -min(surr1, surr2).mean()
 
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
@@ -76,7 +76,7 @@ class PPO():
                     value_losses = (values - return_batch).pow(2)
                     value_losses_clipped = (
                         value_pred_clipped - return_batch).pow(2)
-                    value_loss = 0.5 * torch.max(value_losses,
+                    value_loss = 0.5 * max(value_losses,
                                                  value_losses_clipped).mean()
                 else:
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()

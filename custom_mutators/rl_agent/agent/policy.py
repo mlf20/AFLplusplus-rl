@@ -1,5 +1,5 @@
 import numpy as np
-import torch
+from torch import cat
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -158,7 +158,7 @@ class NNBase(nn.Module):
 
             # assert len(outputs) == T
             # x is a (T, N, -1) tensor
-            x = torch.cat(outputs, dim=0)
+            x = cat(outputs, dim=0)
             # flatten
             x = x.view(T * N, -1)
             hxs = hxs.squeeze(0)
