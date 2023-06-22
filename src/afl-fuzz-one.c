@@ -2938,7 +2938,7 @@ havoc_stage:
       });
       goto abandon_entry; 
     }else {
-      char t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+      u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
       
       // size_t virgin_bits_size = sizeof(afl->virgin_bits);
       char crash_holder = afl->total_crashes;
