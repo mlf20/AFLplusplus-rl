@@ -2924,8 +2924,8 @@ havoc_stage:
     }
 
     if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
-      u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-      u32 *bit_address = &t_bits;
+      char t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+      char *bit_address = &t_bits;
 
       size_t virgin_bits_size = sizeof(t_bits);
       // size_t virgin_bits_size = sizeof(afl->virgin_bits);
@@ -2940,8 +2940,8 @@ havoc_stage:
       });
       goto abandon_entry; 
     }else {
-      u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-      u32 *bit_address = &t_bits;
+      char t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+      char *bit_address = &t_bits;
       size_t virgin_bits_size = sizeof(t_bits);
       // size_t virgin_bits_size = sizeof(afl->virgin_bits);
       char crash_holder = afl->total_crashes;
