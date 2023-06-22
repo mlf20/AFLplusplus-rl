@@ -908,7 +908,7 @@ void havoc_mutation_reset_py(void *py_mutator) {
 
 }
 
-void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_size, unsigned int seed) {
+void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_size, u32 seed) {
 
   PyObject *py_args, *py_value;
 
