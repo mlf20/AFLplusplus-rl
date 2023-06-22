@@ -2050,15 +2050,7 @@ custom_mutator_stage:
 
 havoc_stage:
 
-  if (unlikely(afl->custom_only)) {
 
-    /* Force UI update */
-    show_stats(afl);
-    /* Skip other stages */
-    ret_val = 0;
-    goto abandon_entry;
-
-  }
 
   afl->stage_cur_byte = -1;
 
@@ -2931,7 +2923,32 @@ havoc_stage:
 
     }
 
-    if (common_fuzz_stuff(afl, out_buf, temp_len)) { goto abandon_entry; }
+    if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
+      size_t virgin_bits_size = sizeof(afl->virgin_bits);
+      char crash_holder = afl->total_crashes;
+      size_t crash_size = sizeof(crash_holder);
+      /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+       */
+
+      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+
+        el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, afl->virgin_bits, virgin_bits_size);
+      });
+      goto abandon_entry; 
+    }else {
+      size_t virgin_bits_size = sizeof(afl->virgin_bits);
+      char crash_holder = afl->total_crashes;
+      size_t crash_size = sizeof(crash_holder);
+      /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+       */
+
+      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+
+        el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, afl->virgin_bits, virgin_bits_size);
+      });
+
+
+    }
     /*u8 afl->bitmap_changed
     u32 afl->fsrv.trace_bits
     u32 afl->fsrv.map_size
@@ -2939,24 +2956,6 @@ havoc_stage:
     u8 afl->queued_with_cov
     */
 
-    size_t virgin_bits_size = sizeof(afl->virgin_bits);
-    char crash_holder = afl->total_crashes;
-    // memcpy(crash_holder, &afl->total_crashes, 8);
-    
-    size_t crash_size = sizeof(crash_holder);
-    
-    
-    
-
-    //size_t map_size_size = sizeof(afl->fsrv.map_size);
-    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
-     * ADD IN CRASH CONDITION TOO!
-     */
-
-      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-
-      el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, afl->virgin_bits, virgin_bits_size);
-    });
 
     /* out_buf might have been mangled a bit, so let's restore it to its
        original size and shape. */
