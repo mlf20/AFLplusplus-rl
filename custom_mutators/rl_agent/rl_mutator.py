@@ -25,6 +25,8 @@ import gym
 import numpy as np
 import torch
 import time 
+from torch.utils.tensorboard import SummaryWriter
+
 
 
 
@@ -64,7 +66,9 @@ PREVIOUS_STATE      = None # Unsure if we need this
 TOTAL_STEP_COUNTER  = 0
 SAVE_FREQ           = 500
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_PPO/'
-
+TF_WRITER           = None
+PREV_VIRGIN_BITS    = None
+PREV_TOTAL_CRASHES  = None
 
 def init(seed):
     """
@@ -76,6 +80,8 @@ def init(seed):
     random.seed(seed)
     global AGENT
     global ROLLOUTS
+    global SAVE_DIR
+    global TF_WRITER
 
 
     AGENT = PPO(
@@ -94,13 +100,28 @@ def init(seed):
                               OBSERVATION_SPACE.shape, ACTION_SPACE,
                               AGENT.actor_critic.recurrent_hidden_state_size)
 
+    TF_WRITER = SummaryWriter(log_dir=SAVE_DIR)
     print('INIT STARTED')
 
 
 def deinit():
-    GLOBAL_ARRAY = []
-    print(len(GLOBAL_ARRAY))
+    global TF_WRITER
+    global SAVE_DIR
+
     print('DEINIT STARTED')
+
+    TF_WRITER.close()
+
+    save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
+    try:
+        os.makedirs(save_path)
+    except OSError:
+        print(save_path)
+    print(save_path)
+
+    torch.save(AGENT.actor_critic, os.path.join(save_path, 'final_model'+ ".pt"))
+
+    
 
 
 def fuzz(buf, add_buf, max_size):
@@ -171,7 +192,7 @@ def havoc_mutation_action(buf):
     global AGENT
     global OBSERVATION_SPACE
     global ROLLOUTS
-
+    global TOTAL_STEP_COUNTER
     
 
     # Convert state to numpy fixed size
@@ -199,6 +220,7 @@ def havoc_mutation_action(buf):
 
     # State cleanup
     STEP_COUNTER += 1
+    TOTAL_STEP_COUNTER += 1
 
 
     #action = random.randint(0, MAX_ACTIONS)
@@ -227,8 +249,9 @@ def havoc_mutation_reset():
         print(save_path)
 
         torch.save(AGENT.actor_critic, os.path.join(save_path, 'model'+ ".pt"))
+    
 
-def havoc_mutation_reward(bit_change, virgin_bits):
+def havoc_mutation_reward(total_crashes, virgin_bits):
     '''
     Called for each `havoc_mutation`. pass vars for computing the reward function
     '''
@@ -238,15 +261,33 @@ def havoc_mutation_reward(bit_change, virgin_bits):
     global GAMMA
     global USE_GAE
     global USE_PROPER_TIME_LIMITS
+    global TF_WRITER
+    global TOTAL_STEP_COUNTER
+    global PREV_VIRGIN_BITS
+    global PREV_TOTAL_CRASHES
 
+    print(virgin_bits)
+    print(total_crashes)
 
-    reward = 3 # FIXME to be actually the reward function
+    # Compute reward 
+    if total_crashes > PREV_TOTAL_CRASHES:
+        reward = 10
+        int_list = [int(str(hex(x)), 16) for x in list(buf)]
+        PREV_VIRGIN_BITS = virgin_bits
+        PREV_TOTAL_CRASHES = total_crashes
+    elif PREV_VIRGIN_BITS is not None and virgin_bits != PREV_VIRGIN_BITS:
+        reward = 1
+        int_list = [int(str(hex(x)), 16) for x in list(buf)]
+        PREV_VIRGIN_BITS = virgin_bits
+    else:
+        return = -10
     
-    # update the last transition with correct reward and done 
+    
+    # Update the last transition with correct reward and done 
     ROLLOUTS.rewards[-1] = torch.tensor([reward])
     ROLLOUTS.masks[-1] = torch.FloatTensor([0.0])
     
-    
+
     with torch.no_grad():
         next_value = AGENT.actor_critic.get_value(
             ROLLOUTS.obs[-1], ROLLOUTS.recurrent_hidden_states[-1],
@@ -257,6 +298,12 @@ def havoc_mutation_reward(bit_change, virgin_bits):
 
     value_loss, action_loss, dist_entropy = AGENT.update(ROLLOUTS)
 
+    # Logging
+    TF_WRITER.add_scalar('episodic_return', reward, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('value_loss', value_loss, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('action_loss', action_loss, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('crash_found', crash, TOTAL_STEP_COUNTER)
+    
     ROLLOUTS.after_update()
 
 

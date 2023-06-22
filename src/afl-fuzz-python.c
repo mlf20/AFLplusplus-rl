@@ -908,7 +908,7 @@ void havoc_mutation_reset_py(void *py_mutator) {
 
 }
 
-void havoc_mutation_reward_py(void *py_mutator, const u8 *bit_change, size_t bit_change_size, const u8 *virgin_bits, size_t virgin_bits_size) {
+void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_size, const u8 *virgin_bits, size_t virgin_bits_size) {
 
   PyObject *py_args, *py_value;
 
@@ -916,7 +916,7 @@ void havoc_mutation_reward_py(void *py_mutator, const u8 *bit_change, size_t bit
   py_args = PyTuple_New(2);
 
   /* bit_change */
-  py_value = PyByteArray_FromStringAndSize(bit_change, bit_change_size);
+  py_value = PyByteArray_FromStringAndSize(crash, crash_size);
   if (!py_value) {
 
     Py_DECREF(py_args);

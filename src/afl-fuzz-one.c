@@ -2123,7 +2123,9 @@ havoc_stage:
 
   for (afl->stage_cur = 0; afl->stage_cur < afl->stage_max; ++afl->stage_cur) {
 
-    u32 use_stacking = 1 << (1 + rand_below(afl, afl->havoc_stack_pow2));
+    //u32 use_stacking = 1 << (1 + rand_below(afl, afl->havoc_stack_pow2));
+    // fix use_stacking for RL purposes
+    u32 use_stacking = 86;
 
     afl->stage_cur_val = use_stacking;
 
@@ -2687,7 +2689,7 @@ havoc_stage:
 
         }
 
-        // MAX_HAVOC_ENTRY = 64
+
         case 25: {
 
           /* Delete bytes. */
@@ -2709,6 +2711,11 @@ havoc_stage:
 
           temp_len -= del_len;
 
+          break;
+
+        }
+        case 26: {
+          // adding in a 'do nothing' option
           break;
 
         }
@@ -2920,6 +2927,7 @@ havoc_stage:
           // end of default
 
       }
+      /* FIXME: ADD IN ZERO REWARD FOR TAKING STEP*/
 
     }
 
@@ -2927,16 +2935,27 @@ havoc_stage:
     /*u8 afl->bitmap_changed
     u32 afl->fsrv.trace_bits
     u32 afl->fsrv.map_size
-    u8 afl->virgin_bits*/
+    u8 afl->virgin_bits
+    u8 afl->queued_with_cov
+    */
 
-    size_t bitmap_size = sizeof(afl->bitmap_changed);
-    size_t virgin_bits = sizeof(afl->virgin_bits);
+    size_t virgin_bits_size = sizeof(afl->virgin_bits);
+    char crash_holder = afl->total_crashes;
+    // memcpy(crash_holder, &afl->total_crashes, 8);
+    
+    size_t crash_size = sizeof(crash_holder);
+    
+    
+    
+
     //size_t map_size_size = sizeof(afl->fsrv.map_size);
-    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON */
+    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+     * ADD IN CRASH CONDITION TOO!
+     */
 
       LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-      el->afl_custom_havoc_mutation_reward(el->data, &afl->bitmap_changed, bitmap_size, afl->virgin_bits, virgin_bits);
+      el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, afl->virgin_bits, virgin_bits_size);
     });
 
     /* out_buf might have been mangled a bit, so let's restore it to its
