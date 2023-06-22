@@ -908,7 +908,7 @@ void havoc_mutation_reset_py(void *py_mutator) {
 
 }
 
-void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_size, const char *virgin_bits, size_t virgin_bits_size) {
+void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_size, unsigned int seed) {
 
   PyObject *py_args, *py_value;
 
@@ -926,13 +926,19 @@ void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_
   PyTuple_SetItem(py_args, 0, py_value);
 
   /* virgin_bits */
-  py_value = PyByteArray_FromStringAndSize(virgin_bits, virgin_bits_size);
+  #if PY_MAJOR_VERSION >= 3
+  py_value = PyLong_FromLong(seed);
+  #else
+  py_value = PyInt_FromLong(seed);
+  #endif
+
   if (!py_value) {
 
     Py_DECREF(py_args);
-    FATAL("Failed to convert arguments");
+    FATAL("Cannot convert argument in python init.");
 
   }
+
   PyTuple_SetItem(py_args, 1, py_value);
 
 

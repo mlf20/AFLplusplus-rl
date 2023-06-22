@@ -2924,10 +2924,8 @@ havoc_stage:
     }
 
     if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
-      char t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-      char *bit_address = &t_bits;
-
-      size_t virgin_bits_size = sizeof(t_bits);
+      u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+      
       // size_t virgin_bits_size = sizeof(afl->virgin_bits);
       char crash_holder = afl->total_crashes;
       size_t crash_size = sizeof(crash_holder);
@@ -2936,13 +2934,12 @@ havoc_stage:
 
       LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-        el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, bit_address, virgin_bits_size);
+        el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, t_bits);
       });
       goto abandon_entry; 
     }else {
       char t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-      char *bit_address = &t_bits;
-      size_t virgin_bits_size = sizeof(t_bits);
+      
       // size_t virgin_bits_size = sizeof(afl->virgin_bits);
       char crash_holder = afl->total_crashes;
       size_t crash_size = sizeof(crash_holder);
@@ -2951,7 +2948,7 @@ havoc_stage:
 
       LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-        el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, bit_address, virgin_bits_size);
+        el->afl_custom_havoc_mutation_reward(el->data, &crash_holder, crash_size, t_bits);
       });
 
 
