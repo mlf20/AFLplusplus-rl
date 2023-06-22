@@ -47,7 +47,7 @@ STEP_COUNTER        = 0
 # Agent Parameters
 CLIP_PARAM          = 0.2
 PPO_EPOCH           = 4
-NUM_MINI_BATCH      = 32
+NUM_MINI_BATCH      = 1
 VALUE_LOSS_COEF     = 0.5
 ENTROPY_COEF        = 0.01
 LEARNING_RATE       = 7e-4
@@ -190,9 +190,9 @@ def havoc_mutation_action(buf):
             ROLLOUTS.masks[STEP_COUNTER])
 
     # Add obs info to rollout
-    masks = torch.FloatTensor([[1.0]])
-    bad_masks = torch.FloatTensor([[1.0]])
-    reward =  torch.FloatTensor([[0.0]])
+    masks = torch.FloatTensor([1.0])
+    bad_masks = torch.FloatTensor([1.0])
+    reward =  torch.FloatTensor([0.0])
     ROLLOUTS.insert(padded_state, recurrent_hidden_states, action,
                             action_log_prob, value, reward, masks, bad_masks)
 
@@ -243,10 +243,10 @@ def havoc_mutation_reward(bit_change, virgin_bits):
     reward = 3 # FIXME to be actually the reward function
     
     # update the last transition with correct reward and done 
-    ROLLOUTS.rewards[-1] = torch.tensor([[reward]])
-    ROLLOUTS.masks[-1] = torch.FloatTensor([[0.0]])
+    ROLLOUTS.rewards[-1] = torch.tensor([reward])
+    ROLLOUTS.masks[-1] = torch.FloatTensor([0.0])
     
-
+    
     with torch.no_grad():
         next_value = AGENT.actor_critic.get_value(
             ROLLOUTS.obs[-1], ROLLOUTS.recurrent_hidden_states[-1],
@@ -268,12 +268,13 @@ def introspection():
 
 if __name__ == '__main__':
     init(3)
-    testbyte = bytearray([1, 2, 3, 4])
-    action = havoc_mutation_action(testbyte)
-    print(f"action: {action}")
-    print(f"step counter: {STEP_COUNTER}")
-    havoc_mutation_reward(0,0)
-    havoc_mutation_reset()
+    for i in range(10):
+        testbyte = bytearray([1, 2, 3, 4])
+        action = havoc_mutation_action(testbyte)
+        print(f"action: {action}")
+        print(f"step counter: {STEP_COUNTER}")
+        havoc_mutation_reward(0,0)
+        havoc_mutation_reset()
 
 
 # actions (25 possible actions): 

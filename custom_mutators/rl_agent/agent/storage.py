@@ -10,25 +10,25 @@ def _flatten_helper(T, N, _tensor):
 class RolloutStorage(object):
     def __init__(self, num_steps, num_processes, obs_shape, action_space,
                  recurrent_hidden_state_size):
-        self.obs = zeros(num_steps + 1, num_processes, *obs_shape)
+        self.obs = zeros(num_steps + 1, *obs_shape)
         self.recurrent_hidden_states = zeros(
-            num_steps + 1, num_processes, recurrent_hidden_state_size)
-        self.rewards = zeros(num_steps, num_processes, 1)
-        self.value_preds = zeros(num_steps + 1, num_processes, 1)
-        self.returns = zeros(num_steps + 1, num_processes, 1)
-        self.action_log_probs = zeros(num_steps, num_processes, 1)
+            num_steps + 1, recurrent_hidden_state_size)
+        self.rewards = zeros(num_steps, 1)
+        self.value_preds = zeros(num_steps + 1, 1)
+        self.returns = zeros(num_steps + 1, 1)
+        self.action_log_probs = zeros(num_steps, 1)
         if action_space.__class__.__name__ == 'Discrete':
             action_shape = 1
         else:
             action_shape = action_space.shape[0]
-        self.actions = zeros(num_steps, num_processes, action_shape)
+        self.actions = zeros(num_steps, action_shape)
         if action_space.__class__.__name__ == 'Discrete':
             self.actions = self.actions.long()
-        self.masks = ones(num_steps + 1, num_processes, 1)
+        self.masks = ones(num_steps + 1, 1)
 
         # Masks that indicate whether it's a true terminal state
         # or time limit end state
-        self.bad_masks = ones(num_steps + 1, num_processes, 1)
+        self.bad_masks = ones(num_steps + 1, 1)
 
         self.num_steps = num_steps
         self.step = 0
@@ -109,15 +109,15 @@ class RolloutStorage(object):
                                advantages,
                                num_mini_batch=None,
                                mini_batch_size=None):
-        num_steps, num_processes = self.rewards.size()[0:2]
-        batch_size = num_processes * num_steps
+        num_steps = self.rewards.size()[0]
+        batch_size = num_steps
 
         if mini_batch_size is None:
             assert batch_size >= num_mini_batch, (
                 "PPO requires the number of processes ({}) "
                 "* number of steps ({}) = {} "
                 "to be greater than or equal to the number of PPO mini batches ({})."
-                "".format(num_processes, num_steps, num_processes * num_steps,
+                "".format(num_steps, * num_steps,
                           num_mini_batch))
             mini_batch_size = batch_size // num_mini_batch
         sampler = BatchSampler(
@@ -125,33 +125,30 @@ class RolloutStorage(object):
             mini_batch_size,
             drop_last=True)
         for indices in sampler:
-            obs_batch = self.obs[:-1].view(-1, *self.obs.size()[2:])[indices]
-            recurrent_hidden_states_batch = self.recurrent_hidden_states[:-1].view(
-                -1, self.recurrent_hidden_states.size(-1))[indices]
-            actions_batch = self.actions.view(-1,
-                                              self.actions.size(-1))[indices]
-            value_preds_batch = self.value_preds[:-1].view(-1, 1)[indices]
-            return_batch = self.returns[:-1].view(-1, 1)[indices]
-            masks_batch = self.masks[:-1].view(-1, 1)[indices]
-            old_action_log_probs_batch = self.action_log_probs.view(-1,
-                                                                    1)[indices]
+            obs_batch = self.obs[:-1][indices]
+            recurrent_hidden_states_batch = self.recurrent_hidden_states[:-1][indices]
+            actions_batch = self.actions[indices]
+            value_preds_batch = self.value_preds[:-1][indices]
+            return_batch = self.returns[:-1][indices]
+            masks_batch = self.masks[:-1][indices]
+            old_action_log_probs_batch = self.action_log_probs[indices]
             if advantages is None:
                 adv_targ = None
             else:
-                adv_targ = advantages.view(-1, 1)[indices]
+                adv_targ = advantages[indices]
 
             yield obs_batch, recurrent_hidden_states_batch, actions_batch, \
                 value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
 
     def recurrent_generator(self, advantages, num_mini_batch):
-        num_processes = self.rewards.size(1)
-        assert num_processes >= num_mini_batch, (
-            "PPO requires the number of processes ({}) "
-            "to be greater than or equal to the number of "
-            "PPO mini batches ({}).".format(num_processes, num_mini_batch))
-        num_envs_per_batch = num_processes // num_mini_batch
-        perm = randperm(num_processes)
-        for start_ind in range(0, num_processes, num_envs_per_batch):
+        #num_processes = self.rewards.size(1)
+        #assert num_processes >= num_mini_batch, (
+        #    "PPO requires the number of processes ({}) "
+        #    "to be greater than or equal to the number of "
+        #    "PPO mini batches ({}).".format(num_processes, num_mini_batch))
+        #num_envs_per_batch = num_processes // num_mini_batch
+        perm = zeros((1))
+        for start_ind in range(0, num_processes):
             obs_batch = []
             recurrent_hidden_states_batch = []
             actions_batch = []
@@ -161,20 +158,20 @@ class RolloutStorage(object):
             old_action_log_probs_batch = []
             adv_targ = []
 
-            for offset in range(num_envs_per_batch):
-                ind = perm[start_ind + offset]
-                obs_batch.append(self.obs[:-1, ind])
-                recurrent_hidden_states_batch.append(
-                    self.recurrent_hidden_states[0:1, ind])
-                actions_batch.append(self.actions[:, ind])
-                value_preds_batch.append(self.value_preds[:-1, ind])
-                return_batch.append(self.returns[:-1, ind])
-                masks_batch.append(self.masks[:-1, ind])
-                old_action_log_probs_batch.append(
-                    self.action_log_probs[:, ind])
-                adv_targ.append(advantages[:, ind])
+            #for offset in range(1):
+            #ind = [start_ind + offset]
+            obs_batch.append(self.obs[:-1, [start_ind]])
+            recurrent_hidden_states_batch.append(
+                self.recurrent_hidden_states[0:1, [start_ind]])
+            actions_batch.append(self.actions[:, [start_ind]])
+            value_preds_batch.append(self.value_preds[:-1, [start_ind]])
+            return_batch.append(self.returns[:-1, [start_ind]])
+            masks_batch.append(self.masks[:-1, [start_ind]])
+            old_action_log_probs_batch.append(
+                self.action_log_probs[:, [start_ind]])
+            adv_targ.append(advantages[:, [start_ind]])
 
-            T, N = self.num_steps, num_envs_per_batch
+            T, N = self.num_steps, z
             # These are all tensors of size (T, N, -1)
             obs_batch = stack(obs_batch, 1)
             actions_batch = stack(actions_batch, 1)
