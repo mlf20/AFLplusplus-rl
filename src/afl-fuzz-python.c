@@ -908,15 +908,20 @@ void havoc_mutation_reset_py(void *py_mutator) {
 
 }
 
-void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_size, u32 seed) {
+void havoc_mutation_reward_py(void *py_mutator, u32 crash, u32 bit_count) {
 
   PyObject *py_args, *py_value;
 
 
   py_args = PyTuple_New(2);
 
-  /* bit_change */
-  py_value = PyByteArray_FromStringAndSize(crash, crash_size);
+  /* crash */
+  #if PY_MAJOR_VERSION >= 3
+  py_value = PyLong_FromLong(crash);
+  #else
+  py_value = PyInt_FromLong(crash);
+  #endif  
+
   if (!py_value) {
 
     Py_DECREF(py_args);
@@ -927,9 +932,9 @@ void havoc_mutation_reward_py(void *py_mutator, const char *crash, size_t crash_
 
   /* virgin_bits */
   #if PY_MAJOR_VERSION >= 3
-  py_value = PyLong_FromLong(seed);
+  py_value = PyLong_FromLong(bit_count);
   #else
-  py_value = PyInt_FromLong(seed);
+  py_value = PyInt_FromLong(bit_count);
   #endif
 
   if (!py_value) {

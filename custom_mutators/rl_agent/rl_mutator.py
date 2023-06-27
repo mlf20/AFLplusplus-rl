@@ -67,8 +67,8 @@ TOTAL_STEP_COUNTER  = 0
 SAVE_FREQ           = 500
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_PPO/'
 TF_WRITER           = None
-PREV_VIRGIN_BITS    = None
-PREV_TOTAL_CRASHES  = None
+PREV_VIRGIN_BITS    = 0
+PREV_TOTAL_CRASHES  = 0
 
 def init(seed):
     """
@@ -265,22 +265,24 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     global TOTAL_STEP_COUNTER
     global PREV_VIRGIN_BITS
     global PREV_TOTAL_CRASHES
-
-    print(virgin_bits)
+    #virgin_bits = [int(str(hex(x)), 16) for x in list(virgin_bits)][0]
     print(total_crashes)
+    total_crashes = [int(str(hex(x)), 16) for x in list(total_crashes)][0]
+    #print(virgin_bits)
+    #print(total_crashes)
 
     # Compute reward 
-    if total_crashes > PREV_TOTAL_CRASHES:
+    if total_crashes > PREV_TOTAL_CRASHES: # New crash found
         reward = 10
-        int_list = [int(str(hex(x)), 16) for x in list(buf)]
+        #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
         PREV_TOTAL_CRASHES = total_crashes
-    elif PREV_VIRGIN_BITS is not None and virgin_bits != PREV_VIRGIN_BITS:
+    elif virgin_bits != PREV_VIRGIN_BITS: # New bits found compared to previous
         reward = 1
-        int_list = [int(str(hex(x)), 16) for x in list(buf)]
+        #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
     else:
-        return = -10
+     reward = -10
     
     
     # Update the last transition with correct reward and done 

@@ -1030,7 +1030,7 @@ struct custom_mutator {
    * @param[in] buf_size Size of input data
    * @return The action (0-25).
    */
-  void (*afl_custom_havoc_mutation_reward)(void *data,  const char *crash, size_t crash_size, u32);
+  void (*afl_custom_havoc_mutation_reward)(void *data,  u32, u32);
 
   /**
    * Determine whether the fuzzer should fuzz the current queue entry or not.
@@ -1120,7 +1120,7 @@ size_t      havoc_mutation_py(void *, u8 *, size_t, u8 **, size_t);
 u8          havoc_mutation_probability_py(void *);
 u8          havoc_mutation_action_py(void *, const u8 *, size_t);
 void        havoc_mutation_reset_py(void *);
-void        havoc_mutation_reward_py(void *, const char *, size_t, u32);
+void        havoc_mutation_reward_py(void *, u32, u32);
 u8          queue_get_py(void *, const u8 *);
 const char *introspection_py(void *);
 u8          queue_new_entry_py(void *, const u8 *, const u8 *);
