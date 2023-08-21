@@ -132,8 +132,8 @@ def init(seed):
     lr_schedule = linear_schedule(LEARNING_RATE)
     # needs to be rl4llms agent wrapped
     AGENT =  CausalLMActorCriticPolicy(
-            observation_space=obs_space,
-            action_space=action_space,
+            observation_space=OBSERVATION_SPACE,
+            action_space=ACTION_SPACE,
             model_name='byte_gpt2',
             ls_schedule=lr_schedule,
         )
