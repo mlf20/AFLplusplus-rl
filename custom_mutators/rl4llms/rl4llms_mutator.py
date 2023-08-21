@@ -135,7 +135,7 @@ def init(seed):
             observation_space=OBSERVATION_SPACE,
             action_space=ACTION_SPACE,
             model_name='byte_gpt2',
-            ls_schedule=lr_schedule,
+            lr_schedule=lr_schedule,
         )
 
 
@@ -167,7 +167,7 @@ def deinit():
     except OSError:
         print(save_path)
     print(save_path)
-    
+
     AGENT.get_language_model().save_pretrained(save_path, 'model'+ ".pt")
     #torch.save(AGENT.actor_critic, os.path.join(save_path, 'final_model'+ ".pt"))
 
