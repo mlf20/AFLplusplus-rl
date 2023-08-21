@@ -247,8 +247,8 @@ def havoc_mutation_action(buf):
 
     # Convert state to numpy fixed size
     int_list = [int(str(hex(x)), 16) for x in list(buf)]
-    str_buff = "".join([str(hex(x), 16) for x in list(buf)])
-    obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH)
+    str_buff = "".join([str(hex(x)) for x in list(buf)])
+    obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH, 'left')
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
     obs_tensor = obs_as_tensor(current_obs, self.device)
     generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
