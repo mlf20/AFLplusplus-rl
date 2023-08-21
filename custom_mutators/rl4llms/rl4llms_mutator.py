@@ -27,7 +27,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn import functional as F
 from gym.spaces.dict import Dict as DictSpace
 from gym import spaces
-from stable_baselines.common.schedules import ConstantSchedule 
 from transformers import pipeline, PreTrainedTokenizerFast
 from transformers import AutoTokenizer
 from rl4lms.envs.text_generation.registry import WrapperRegistry
@@ -37,7 +36,8 @@ from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
 from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
 
-from rl4llmXafl_utils import add_to_buffer
+from rl4llmXafl_utils import add_to_buffer, linear_schedule
+
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
 
@@ -129,7 +129,7 @@ def init(seed):
     global ROLLOUTS
     global SAVE_DIR
     global TF_WRITER
-    lr_schedule = ConstantSchedule(LEARNING_RATE)
+    lr_schedule = linear_schedule(LEARNING_RATE)
     # needs to be rl4llms agent wrapped
     AGENT =  CausalLMActorCriticPolicy(
             observation_space=obs_space,

@@ -81,3 +81,25 @@ def add_to_buffer(
         rollout_info["rollout_info/ep_lens"].append(ep_length)
         rollout_info["rollout_info/ep_kl_rew"].append(total_kl_reward)
     return rollout_info
+
+
+
+
+def linear_schedule(initial_value: float):
+    """
+    Linear learning rate schedule.
+
+    :param initial_value: Initial learning rate.
+    :return: schedule that computes
+      current learning rate depending on remaining progress
+    """
+    def func(progress_remaining: float) -> float:
+        """
+        Progress will decrease from 1 (beginning) to 0.
+
+        :param progress_remaining:
+        :return: current learning rate
+        """
+        return progress_remaining * initial_value
+
+    return func
