@@ -199,7 +199,7 @@ def havoc_mutation_action(buf):
     int_list = [int(str(hex(x)), 16) for x in list(buf)]
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
 
-    padded_state = torch.nn.functional.pad(input=torch.tensor(int_list), pad=(0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), mode='constant', value=0)
+    padded_state = torch.nn.functional.pad(input=torch.tensor(int_list), pad=(0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), mode='constant', value=0)    
     padded_state = padded_state[:OBSERVATION_SPACE.shape[0]]
 
     if STEP_COUNTER == 0:
@@ -268,6 +268,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     global TOTAL_EXECUTIONS
     #virgin_bits = [int(str(hex(x)), 16) for x in list(virgin_bits)][0]
     #print(total_crashes)
+
     #total_crashes = [int(str(hex(x)), 16) for x in list(total_crashes)][0]
     #print(virgin_bits)
     #print(total_crashes)
@@ -278,12 +279,14 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
         #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
         PREV_TOTAL_CRASHES = total_crashes
+
     elif int(virgin_bits) > int(PREV_VIRGIN_BITS): # New bits found compared to previous
         reward = 1
         #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
     else:
         reward = -10
+
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
@@ -302,6 +305,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     value_loss, action_loss, dist_entropy = AGENT.update(ROLLOUTS)
 
     # Logging
+
     TOTAL_EXECUTIONS += 1
     TF_WRITER.add_scalar('episodic_return_steps', reward, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('bits_covered_steps', virgin_bits, TOTAL_STEP_COUNTER)
