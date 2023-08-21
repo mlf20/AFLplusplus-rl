@@ -21,10 +21,10 @@ import os
 # RL imports
 from agent.ppo import PPO
 from agent.storage import RolloutStorage
-import gym 
+import gym
 import numpy as np
 import torch
-import time 
+import time
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -42,7 +42,7 @@ ROLLOUTS = None
 STATE = []
 MAX_ACTIONS         = 26
 OBSERVATION_SPACE   = gym.spaces.Box(0, 3000, (9216, ), dtype=int) # max seen in testing 8348 int so 2^13*1.125 = 9216  8348??
-ACTION_SPACE        = gym.spaces.Discrete(MAX_ACTIONS) 
+ACTION_SPACE        = gym.spaces.Discrete(MAX_ACTIONS)
 MAX_STEPS           = 86 # Taken from maximum value of mutations that can be done by AFL. Though AFL takes a random number of steps (4,8,16,26,46,86) when doing so
 STEP_COUNTER        = 0
 
@@ -62,14 +62,14 @@ GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
 
 # Training loop params
-PREVIOUS_STATE      = None # Unsure if we need this 
+PREVIOUS_STATE      = None # Unsure if we need this
 TOTAL_STEP_COUNTER  = 0
 SAVE_FREQ           = 500
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_PPO/'
 TF_WRITER           = None
 PREV_VIRGIN_BITS    = 0
 PREV_TOTAL_CRASHES  = 0
-
+TOTAL_EXECUTIONS    = 0
 def init(seed):
     """
     Called once when AFLFuzz starts up. Used to seed our RNG.
@@ -94,7 +94,7 @@ def init(seed):
             ENTROPY_COEF,
             lr=LEARNING_RATE,
             eps=EPSILON,
-            max_grad_norm=MAX_GRAD_NORM, 
+            max_grad_norm=MAX_GRAD_NORM,
             base_kwargs={'recurrent': RECURRENT_POLICY})
     ROLLOUTS = RolloutStorage(MAX_STEPS, 1,
                               OBSERVATION_SPACE.shape, ACTION_SPACE,
@@ -121,7 +121,7 @@ def deinit():
 
     torch.save(AGENT.actor_critic, os.path.join(save_path, 'final_model'+ ".pt"))
 
-    
+
 
 
 def fuzz(buf, add_buf, max_size):
@@ -180,7 +180,7 @@ def havoc_mutation_probability():
 
 def havoc_mutation_action(buf):
     '''
-    Called for each `havoc_mutation`. 
+    Called for each `havoc_mutation`.
     For a given buffer return the mutation action to be taken by AFL.
     @type buf: bytearray
     @param buf: The buffer that should be mutated.
@@ -193,14 +193,14 @@ def havoc_mutation_action(buf):
     global OBSERVATION_SPACE
     global ROLLOUTS
     global TOTAL_STEP_COUNTER
-    
+
 
     # Convert state to numpy fixed size
     int_list = [int(str(hex(x)), 16) for x in list(buf)]
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
 
     padded_state = torch.nn.functional.pad(input=torch.tensor(int_list), pad=(0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), mode='constant', value=0)
-
+    padded_state = padded_state[:OBSERVATION_SPACE.shape[0]]
 
     if STEP_COUNTER == 0:
          ROLLOUTS.obs[0].copy_(padded_state)
@@ -239,7 +239,7 @@ def havoc_mutation_reset():
     global AGENT
 
 
-    STEP_COUNTER = 0 
+    STEP_COUNTER = 0
     if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
         save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
         try:
@@ -249,7 +249,7 @@ def havoc_mutation_reset():
         print(save_path)
 
         torch.save(AGENT.actor_critic, os.path.join(save_path, 'model'+ ".pt"))
-    
+
 
 def havoc_mutation_reward(total_crashes, virgin_bits):
     '''
@@ -265,30 +265,31 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     global TOTAL_STEP_COUNTER
     global PREV_VIRGIN_BITS
     global PREV_TOTAL_CRASHES
+    global TOTAL_EXECUTIONS
     #virgin_bits = [int(str(hex(x)), 16) for x in list(virgin_bits)][0]
-    print(total_crashes)
-    total_crashes = [int(str(hex(x)), 16) for x in list(total_crashes)][0]
+    #print(total_crashes)
+    #total_crashes = [int(str(hex(x)), 16) for x in list(total_crashes)][0]
     #print(virgin_bits)
     #print(total_crashes)
 
-    # Compute reward 
+    # Compute reward
     if total_crashes > PREV_TOTAL_CRASHES: # New crash found
         reward = 10
         #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
         PREV_TOTAL_CRASHES = total_crashes
-    elif virgin_bits != PREV_VIRGIN_BITS: # New bits found compared to previous
+    elif int(virgin_bits) > int(PREV_VIRGIN_BITS): # New bits found compared to previous
         reward = 1
         #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
     else:
-     reward = -10
-    
-    
-    # Update the last transition with correct reward and done 
+        reward = -10
+    print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
+
+    # Update the last transition with correct reward and done
     ROLLOUTS.rewards[-1] = torch.tensor([reward])
     ROLLOUTS.masks[-1] = torch.FloatTensor([0.0])
-    
+
 
     with torch.no_grad():
         next_value = AGENT.actor_critic.get_value(
@@ -301,11 +302,19 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     value_loss, action_loss, dist_entropy = AGENT.update(ROLLOUTS)
 
     # Logging
-    TF_WRITER.add_scalar('episodic_return', reward, TOTAL_STEP_COUNTER)
-    TF_WRITER.add_scalar('value_loss', value_loss, TOTAL_STEP_COUNTER)
-    TF_WRITER.add_scalar('action_loss', action_loss, TOTAL_STEP_COUNTER)
-    TF_WRITER.add_scalar('crash_found', crash, TOTAL_STEP_COUNTER)
-    
+    TOTAL_EXECUTIONS += 1
+    TF_WRITER.add_scalar('episodic_return_steps', reward, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('bits_covered_steps', virgin_bits, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('value_loss_steps', value_loss, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('action_loss_steps', action_loss, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('crash_found_steps', total_crashes, TOTAL_STEP_COUNTER)
+    TF_WRITER.add_scalar('episodic_return_exec', reward, TOTAL_EXECUTIONS)
+    TF_WRITER.add_scalar('bits_covered_exec', virgin_bits, TOTAL_EXECUTIONS)
+    TF_WRITER.add_scalar('value_loss_exec', value_loss, TOTAL_EXECUTIONS)
+    TF_WRITER.add_scalar('action_loss_exec', action_loss, TOTAL_EXECUTIONS)
+    TF_WRITER.add_scalar('crash_found_exec', total_crashes, TOTAL_EXECUTIONS)
+
+
     ROLLOUTS.after_update()
 
 
@@ -326,14 +335,14 @@ if __name__ == '__main__':
         havoc_mutation_reset()
 
 
-# actions (25 possible actions): 
-# flip single bit 
+# actions (25 possible actions):
+# flip single bit
 # set interesting byte value
-# set word (2 bytes) to interesting value, little endian. 
-# Set word to interesting value, big endian. 
+# set word (2 bytes) to interesting value, little endian.
+# Set word to interesting value, big endian.
 # Set dword to interesting value, big endian.
 # Randomly subtract from byte.
-# Randomly add to byte. 
+# Randomly add to byte.
 # Randomly subtract from word, little endian
 # Randomly subtract from word, big endian
 # Randomly add to word, little endian
@@ -346,15 +355,15 @@ if __name__ == '__main__':
 # Just set a random byte to a random value. Because, why not. We use XOR with 1-255 to eliminate the possibility of a no-op.
 # Clone bytes
 # Insert a block of constant bytes (25%).
-# Overwrite bytes with a randomly selected chunk bytes. 
+# Overwrite bytes with a randomly selected chunk bytes.
 # Overwrite bytes with fixed bytes.
 
 # Increase byte by 1.
 # Decrease byte by 1.
 # Flip byte.
 # Switch bytes.
-# Delete bytes 
-# Do nothing 
+# Delete bytes
+# Do nothing
 
 
 # Uncomment and implement the following methods if you want to use a custom
