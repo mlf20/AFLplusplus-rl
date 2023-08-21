@@ -19,16 +19,14 @@ import random
 import os
 
 # RL imports
-from agent.ppo import PPO
-from agent.storage import RolloutStorage
 import gym
 import numpy as np
 import torch
 import time
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn import functional as F
-
-
+from gym.spaces.dict import Dict as DictSpace
+from gym import spaces
 from transformers import pipeline, PreTrainedTokenizerFast
 from transformers import AutoTokenizer
 from rl4lms.envs.text_generation.registry import WrapperRegistry
@@ -39,7 +37,7 @@ from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
 
 from rl4llmXafl_utils import add_to_buffer
-#from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import * 
+#from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
 
 
@@ -75,7 +73,7 @@ EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
 GAMMA               = 0.99
-BATCH_SIZE          = 64 
+BATCH_SIZE          = 64
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
@@ -132,18 +130,13 @@ def init(seed):
     global TF_WRITER
 
     # needs to be rl4llms agent wrapped
-    AGENT = PPO(
-            OBSERVATION_SPACE,
-            ACTION_SPACE,
-            CLIP_PARAM,
-            PPO_EPOCH,
-            NUM_MINI_BATCH,
-            VALUE_LOSS_COEF,
-            ENTROPY_COEF,
-            lr=LEARNING_RATE,
-            eps=EPSILON,
-            max_grad_norm=MAX_GRAD_NORM,
-            base_kwargs={'recurrent': RECURRENT_POLICY})
+    AGENT =  CausalLMActorCriticPolicy(
+            observation_space=obs_space,
+            action_space=action_space,
+            model_name='byte_gpt2',
+            ls_schedule=lr_schedule,
+        )
+
 
     ROLLOUTS = MaskableDictRolloutBuffer(
                 MAX_STEPS,
@@ -374,7 +367,7 @@ def havoc_mutation_action(buf):
                 ep_terminated[env_ix] = True
 
         episode_starts = np.zeros((1,), dtype=bool)
-        
+
     # now we flush all episode wise info to the 1-D buffer
     rollout_info = self._add_to_buffer(
         rollout_buffer, episode_wise_transitions, rollout_info
@@ -398,7 +391,7 @@ def havoc_mutation_reset():
     global SAVE_DIR
     global AGENT
     AGENT.policy.set_training_mode(False)
-    
+
 
     rollout_info = {
         "rollout_info/ep_rew": [],
@@ -473,7 +466,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
 
 
-    
+
     if ROLLOUTS.full:
         aggregated_rollout_info = {}
         for key, values in rollout_info.items():
@@ -512,7 +505,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 values = values.flatten()
                 # Normalize advantage
                 advantages = rollout_data.advantages
-                
+
                 advantages = (advantages - advantages.mean()
                                   ) / (advantages.std() + 1e-8)
 
@@ -535,9 +528,9 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 clip_fraction = torch.mean(
                     (torch.abs(ratio - 1) > clip_range).float()).item()
                 clip_fractions.append(clip_fraction)
-                
+
                 values_pred = values
-                
+
                 # Value loss using the TD(gae_lambda) target
                 value_loss = F.mse_loss(rollout_data.returns, values_pred)
                 value_losses.append(value_loss.item())
@@ -559,7 +552,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                         (torch.exp(log_ratio) - 1) - log_ratio).cpu().numpy()
                     approx_kl_divs.append(approx_kl_div)
 
-                
+
                 # Optimization step
                 AGENT.policy.optimizer.zero_grad()
                 loss.backward()
@@ -572,10 +565,10 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 break
         ROLLOUTS.reset()
 
-    
+
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
-    
+
     TOTAL_EXECUTIONS += 1
     TF_WRITER.add_scalar('episodic_return_steps', reward, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('bits_covered_steps', virgin_bits, TOTAL_STEP_COUNTER)
