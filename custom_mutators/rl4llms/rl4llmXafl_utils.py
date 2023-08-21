@@ -86,3 +86,20 @@ def linear_schedule(initial_value: float):
         return progress_remaining * initial_value
 
     return func
+
+
+def get_policy_kwargs(
+    obs,
+    action,
+    past_state,
+    action_mask,
+):
+
+    policy_kwargs = {
+        "obs": obs,
+        "actions": action,
+        "past_model_kwargs": past_state,
+    }
+    if action_mask is not None:
+        policy_kwargs["action_masks"] = action_mask
+    return policy_kwargs

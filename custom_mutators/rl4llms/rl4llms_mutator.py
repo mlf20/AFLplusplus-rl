@@ -36,7 +36,7 @@ from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
 from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
 from rl4lms.data_pools.text_generation_pool import Sample
-from rl4llmXafl_utils import add_to_buffer, linear_schedule
+from rl4llmXafl_utils import add_to_buffer, linear_schedule, get_policy_kwargs
 
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
@@ -114,7 +114,7 @@ TF_WRITER           = None
 PREV_VIRGIN_BITS    = 0
 PREV_TOTAL_CRASHES  = 0
 TOTAL_EXECUTIONS    = 0
-
+DEVICE              = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 
 def init(seed):
@@ -143,7 +143,7 @@ def init(seed):
                 MAX_STEPS,
                 OBSERVATION_SPACE,
                 ACTION_SPACE,
-                device='cpu',
+                device=DEVICE,
                 gamma=GAMMA,
                 gae_lambda=GAE_LAMBDA,
                 n_envs=1,
@@ -251,7 +251,7 @@ def havoc_mutation_action(buf):
     str_buff = Sample(1, str_buff, ['byte_string'])
     obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH, 'left')
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
-    obs_tensor = obs_as_tensor(obs, self.device)
+    obs_tensor = obs_as_tensor(obs, DEVICE)
     generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
     gen_output = AGENT.generate(
         input_ids=generation_inputs.inputs,
@@ -280,14 +280,14 @@ def havoc_mutation_action(buf):
 
         # evaluate actions with actions from rollout
         with torch.no_grad():
-            obs_tensor = obs_as_tensor(obs, self.device)
+            obs_tensor = obs_as_tensor(obs, DEVICE)
 
             # get log probs (TBD: generalize this a bit)
-            policy_kwargs = self.get_policy_kwargs(
+            policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
             )
 
-            policy_outputs: PolicyOutput = self.policy.forward_policy(
+            policy_outputs: PolicyOutput = AGENT.forward_policy(
                 **policy_kwargs
             )
             raw_log_probs, log_probs, policy_past_state = (
@@ -307,7 +307,7 @@ def havoc_mutation_action(buf):
             ), "Infinite values in log probs"
 
             # get values
-            value_outputs: ValueOutput = self.policy.forward_value(
+            value_outputs: ValueOutput = AGENT.forward_value(
                 obs_tensor, value_past_state
             )
             values, value_past_state = (
@@ -317,7 +317,7 @@ def havoc_mutation_action(buf):
 
             # get reference log probs
             ref_policy_outputs: RefPolicyOutput = (
-                self.policy.get_log_probs_ref_model(
+                AGENT.get_log_probs_ref_model(
                     obs_tensor, actions_tensor, ref_past_state
                 )
             )
