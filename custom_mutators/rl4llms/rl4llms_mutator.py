@@ -251,7 +251,7 @@ def havoc_mutation_action(buf):
     str_buff = Sample(1, str_buff, ['byte_string'])
     obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH, 'left')
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
-    obs_tensor = obs_as_tensor(current_obs, self.device)
+    obs_tensor = obs_as_tensor(obs, self.device)
     generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
     gen_output = AGENT.generate(
         input_ids=generation_inputs.inputs,
@@ -280,7 +280,7 @@ def havoc_mutation_action(buf):
 
         # evaluate actions with actions from rollout
         with torch.no_grad():
-            obs_tensor = obs_as_tensor(current_obs, self.device)
+            obs_tensor = obs_as_tensor(obs, self.device)
 
             # get log probs (TBD: generalize this a bit)
             policy_kwargs = self.get_policy_kwargs(
