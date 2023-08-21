@@ -6,23 +6,6 @@ from rl4lms.envs.text_generation.reward import RewardFunction
 
 
 
-
-class AFLRewardFunction(RewardFunction):
-   def __init__(self, *args) -> None:
-       super().__init__()
-
-   def __call__(self, prev_observation: Observation,
-                action: int,
-                current_observation: Observation,
-                done: bool,
-                meta_info: Dict[str, Any] = None) -> float:
-       if done:
-
-           reward = ..
-           return reward
-       return 0
-
-
 def add_to_buffer(
     self, rollout_buffer, episode_wise_transitions, rollout_info
 ):
