@@ -27,6 +27,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn import functional as F
 from gym.spaces.dict import Dict as DictSpace
 from gym import spaces
+from stable_baselines.common.schedules import ConstantSchedule 
 from transformers import pipeline, PreTrainedTokenizerFast
 from transformers import AutoTokenizer
 from rl4lms.envs.text_generation.registry import WrapperRegistry
@@ -128,7 +129,7 @@ def init(seed):
     global ROLLOUTS
     global SAVE_DIR
     global TF_WRITER
-
+    lr_schedule = ConstantSchedule(LEARNING_RATE)
     # needs to be rl4llms agent wrapped
     AGENT =  CausalLMActorCriticPolicy(
             observation_space=obs_space,
@@ -166,8 +167,9 @@ def deinit():
     except OSError:
         print(save_path)
     print(save_path)
-
-    torch.save(AGENT.actor_critic, os.path.join(save_path, 'final_model'+ ".pt"))
+    
+    AGENT.get_language_model().save_pretrained(save_path, 'model'+ ".pt")
+    #torch.save(AGENT.actor_critic, os.path.join(save_path, 'final_model'+ ".pt"))
 
 
 
@@ -249,8 +251,8 @@ def havoc_mutation_action(buf):
     obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH)
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
     obs_tensor = obs_as_tensor(current_obs, self.device)
-    generation_inputs = AGENT.policy.get_inputs_for_generation(obs_tensor)
-    gen_output = AGENT.policy.generate(
+    generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
+    gen_output = AGENT.generate(
         input_ids=generation_inputs.inputs,
         attention_mask=generation_inputs.attention_masks,
         tokenizer=TOKENIZER,
@@ -390,7 +392,7 @@ def havoc_mutation_reset():
     global SAVE_FREQ
     global SAVE_DIR
     global AGENT
-    AGENT.policy.set_training_mode(False)
+    AGENT.set_training_mode(False)
 
 
     rollout_info = {
@@ -407,7 +409,7 @@ def havoc_mutation_reset():
     STEP_COUNTER = 0
     if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
         os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
-        AGENT.policy.get_language_model().save_pretrained(save_path, 'model'+ ".pt")
+        AGENT.get_language_model().save_pretrained(save_path, 'model'+ ".pt")
 
         """
         save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
@@ -481,7 +483,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
             torch.tensor(aggregated_rollout_info["rollout_info/kl_div_mean"])
         )
 
-        AGENT.policy.set_training_mode(True)
+        AGENT.set_training_mode(True)
         entropy_losses = []
         pg_losses, value_losses = [], []
         clip_fractions = []
@@ -499,7 +501,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                     actions = rollout_data.actions.long().flatten()
 
 
-                evaluation_output: EvaluateActionsOutput = AGENT.policy.evaluate_actions(
+                evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
                     rollout_data.observations, actions)
                 values, log_prob, entropy = evaluation_output.values, evaluation_output.log_prob, evaluation_output.entropy
                 values = values.flatten()
@@ -554,12 +556,12 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
 
 
                 # Optimization step
-                AGENT.policy.optimizer.zero_grad()
+                AGENT.optimizer.zero_grad()
                 loss.backward()
                 # Clip grad norm
                 torch.nn.utils.clip_grad_norm_(
-                    AGENT.policy.parameters(), self.max_grad_norm)
-                AGENT.policy.optimizer.step()
+                    AGENT.parameters(), self.max_grad_norm)
+                AGENT.optimizer.step()
 
             if not continue_training:
                 break
