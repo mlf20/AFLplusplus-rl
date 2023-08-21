@@ -35,7 +35,7 @@ from rl4lms.envs.text_generation.policy.causal_policy import CausalLMActorCritic
 from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
 from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
-
+from rl4lms.data_pools.text_generation_pool import Sample
 from rl4llmXafl_utils import add_to_buffer, linear_schedule
 
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
@@ -248,6 +248,7 @@ def havoc_mutation_action(buf):
     # Convert state to numpy fixed size
     int_list = [int(str(hex(x)), 16) for x in list(buf)]
     str_buff = "".join([str(hex(x)) for x in list(buf)])
+    str_buff = Sample(1, str_buff, ['byte_string'])
     obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH, 'left')
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
     obs_tensor = obs_as_tensor(current_obs, self.device)
