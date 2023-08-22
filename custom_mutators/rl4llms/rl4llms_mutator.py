@@ -428,7 +428,12 @@ def havoc_mutation_reset():
 
     STEP_COUNTER = 0
     if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
-        os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
+        save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
+        try:
+            os.makedirs(save_path)
+        except OSError:
+            print(save_path)
+        print(save_path)
         AGENT.get_language_model().save_pretrained(save_path, 'model'+ ".pt")
 
         """
