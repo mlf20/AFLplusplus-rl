@@ -354,7 +354,7 @@ def havoc_mutation_action(buf):
         actions = actions_tensor.cpu().numpy()
         dones = np.zeros((1,))
         total_rewards = rewards + kl_rewards.cpu().numpy()
-        infos = [{}] 
+        infos = [{}]
 
         # unpack individual observations
         unpacked_obs = unpack_observations(obs_tensor, 1)
@@ -400,7 +400,19 @@ def havoc_mutation_action(buf):
     #action = random.randint(0, MAX_ACTIONS)
     #GLOBAL_ARRAY.append(action)
     #print(GLOBAL_ARRAY)
-    return int(action)
+    print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
+    string_array = TOKENIZER.decode(actions_tensor)
+    byte_arr = bytearray(string_array.encode('utf-8'))
+    print('string_array.encode(utf-8)')
+    print(string_array.encode('utf-8'))
+    print('string')
+    print(string_array)
+    print('bytearray')
+    print(byte_arr)
+    print('1234 bytearray')
+    print(bytearray('\x45\x83'.encode('utf-8')))
+    print(bytearray([1,2,3,4]))
+    return byte_arr
 
 def havoc_mutation_reset():
     '''
@@ -491,12 +503,13 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     # Update the last transition with correct reward and done
     ROLLOUTS.returns[-1] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
-    ROLLOUTS.dones[-1] = np.ones((1,))
-
-
+    ROLLOUTS.action_masks[-1] = np.ones((1,))
+    print(len(ROLLOUTS.actions))
+    print(ROLLOUTS.actions)
+    print(ROLLOUTS.get(1))
     if ROLLOUTS.full:
         aggregated_rollout_info = {}
-        for key, values in rollout_info.items():
+        for key, values in ROLLOUT_INFO.items():
             aggregated_rollout_info[key] = np.mean(values).item()
             aggregated_rollout_info[f"{key}_std"] = np.std(values).item()
         aggregated_rollout_info[
@@ -514,6 +527,8 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
         clip_fractions = []
 
         continue_training = True
+        print(len(ROLLOUTS.actions))
+        print(ROLLOUTS.get(1))
                 # train for n_epochs epochs
         for epoch in range(PPO_EPOCH):
             approx_kl_divs = []
@@ -597,19 +612,19 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
 
 
     TOTAL_EXECUTIONS += 1
+    if ROLLOUTS.full:
+        TF_WRITER.add_scalar('value_loss_steps', value_loss, TOTAL_STEP_COUNTER)
+        TF_WRITER.add_scalar('value_loss_exec', value_loss, TOTAL_EXECUTIONS)
+
     TF_WRITER.add_scalar('episodic_return_steps', reward, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('bits_covered_steps', virgin_bits, TOTAL_STEP_COUNTER)
-    TF_WRITER.add_scalar('value_loss_steps', value_loss, TOTAL_STEP_COUNTER)
-    TF_WRITER.add_scalar('action_loss_steps', action_loss, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('crash_found_steps', total_crashes, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('episodic_return_exec', reward, TOTAL_EXECUTIONS)
     TF_WRITER.add_scalar('bits_covered_exec', virgin_bits, TOTAL_EXECUTIONS)
-    TF_WRITER.add_scalar('value_loss_exec', value_loss, TOTAL_EXECUTIONS)
-    TF_WRITER.add_scalar('action_loss_exec', action_loss, TOTAL_EXECUTIONS)
     TF_WRITER.add_scalar('crash_found_exec', total_crashes, TOTAL_EXECUTIONS)
 
 
-    ROLLOUTS.after_update()
+    #ROLLOUTS.after_update()
 
 
 

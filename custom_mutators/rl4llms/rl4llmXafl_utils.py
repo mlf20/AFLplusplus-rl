@@ -38,14 +38,6 @@ def add_to_buffer(rollout_buffer, episode_wise_transitions, rollout_info
             # if the buffer is full, compute advantages
             if rollout_buffer.full and not advantages_computed:
 
-                # normalize the rewards
-                if self._norm_reward:
-                    mean = rollout_buffer.rewards.mean()
-                    std = rollout_buffer.rewards.std()
-                    rollout_buffer.rewards = (rollout_buffer.rewards - mean) / (
-                        std + 1e-8
-                    )
-
                 # we fetch the last value for the last time step
                 # values come from the next transitions's values
                 next_values = (
