@@ -136,6 +136,9 @@ def init(seed):
             action_space=ACTION_SPACE,
             model_name='byte_gpt2',
             lr_schedule=lr_schedule,
+            generation_kwargs={'do_sample': True, 
+                               'min_length': 48,
+                               'max_new_tokens': 48}
         )
 
 
@@ -249,10 +252,12 @@ def havoc_mutation_action(buf):
     int_list = [int(str(hex(x)), 16) for x in list(buf)]
     str_buff = "".join([str(hex(x)) for x in list(buf)])
     str_buff = Sample(1, str_buff, ['byte_string'])
-    obs = Observation.init_from_sample(str_buff, TOKENIZER, MODEL_MAX_LENGTH, MODEL_MAX_LENGTH, 'left')
+
+    obs = Observation.init_from_sample(, str_buff, TOKENIZER, 20, 512, 'left')
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
     obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
     generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
+    print()
     gen_output = AGENT.generate(
         input_ids=generation_inputs.inputs,
         attention_mask=generation_inputs.attention_masks,
