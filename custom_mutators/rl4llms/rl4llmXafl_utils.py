@@ -1,10 +1,10 @@
 from rl4lms.envs.text_generation.observation import Observation
 from rl4lms.envs.text_generation.reward import RewardFunction
-
-
-
-
-
+from dataclasses import dataclass
+from stable_baselines3.common.type_aliases import TensorDict
+import numpy as np
+import torch
+from typing import Dict, Any
 
 def add_to_buffer(
     self, rollout_buffer, episode_wise_transitions, rollout_info
@@ -103,3 +103,35 @@ def get_policy_kwargs(
     if action_mask is not None:
         policy_kwargs["action_masks"] = action_mask
     return policy_kwargs
+
+
+def unpack_observations(obs_tensor, n_envs: int):
+    """
+    Unpacks vectorized dict observations into separate dict observations
+    """
+    unpacked_obs = []
+    keys = obs_tensor.keys()
+    for env_ix in range(n_envs):
+        obs_dict = {}
+        for key in keys:
+            obs_dict[key] = obs_tensor[key][env_ix].reshape(1, -1).cpu()
+        unpacked_obs.append(obs_dict)
+    return unpacked_obs
+
+@dataclass
+class TransitionInfo:
+    observation: TensorDict
+    action: np.ndarray
+    task_reward: np.ndarray
+    total_reward: np.ndarray
+    kl_div: np.ndarray
+    episode_start: np.ndarray
+    value: torch.Tensor
+    log_prob: torch.Tensor
+    done: np.ndarray
+    ref_log_prob: torch.Tensor
+    kl_reward: np.ndarray
+    action_mask: np.ndarray
+    info: Dict[str, Any]
+
+
