@@ -54,7 +54,7 @@ def add_to_buffer(rollout_buffer, episode_wise_transitions, rollout_info
         rollout_info["rollout_info/ep_rew"].append(total_reward)
         rollout_info["rollout_info/ep_lens"].append(ep_length)
         rollout_info["rollout_info/ep_kl_rew"].append(total_kl_reward)
-    return rollout_info
+    return rollout_info, rollout_buffer
 
 
 

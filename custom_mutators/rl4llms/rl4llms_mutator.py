@@ -385,7 +385,7 @@ def havoc_mutation_action(buf):
         episode_starts = np.zeros((1,), dtype=bool)
 
     # now we flush all episode wise info to the 1-D buffer
-    ROLLOUT_INFO = add_to_buffer(
+    ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
         ROLLOUTS, episode_wise_transitions, ROLLOUT_INFO
     )
     print([(key, val.shape) for key, val in ROLLOUTS.observations.items()])
