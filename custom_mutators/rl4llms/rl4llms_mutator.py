@@ -36,7 +36,7 @@ from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
 from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
 from rl4lms.data_pools.text_generation_pool import Sample
-from rl4llmXafl_utils import add_to_buffer, linear_schedule, get_policy_kwargs
+from rl4llmXafl_utils import add_to_buffer, linear_schedule, get_policy_kwargs, unpack_observations, TransitionInfo
 
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
@@ -125,6 +125,7 @@ def init(seed):
     @param seed: A 32-bit random value
     """
     random.seed(seed)
+    torch.cuda.empty_cache()
     global AGENT
     global ROLLOUTS
     global SAVE_DIR
@@ -136,9 +137,9 @@ def init(seed):
             action_space=ACTION_SPACE,
             model_name='byte_gpt2',
             lr_schedule=lr_schedule,
-            generation_kwargs={'do_sample': True, 
-                               'min_length': 48,
-                               'max_new_tokens': 48}
+            generation_kwargs={'do_sample': True,
+                               'min_length': 32,
+                               'max_new_tokens': 32}
         )
 
 
@@ -250,20 +251,23 @@ def havoc_mutation_action(buf):
 
     # Convert state to numpy fixed size
     int_list = [int(str(hex(x)), 16) for x in list(buf)]
-    str_buff = "".join([str(hex(x)) for x in list(buf)])
+    #str_buff = "".join([str(hex(x)) for x in list(buf)])
+    str_buff = str(buf)[12:-2]
     str_buff = Sample(1, str_buff, ['byte_string'])
-
-    obs = Observation.init_from_sample(, str_buff, TOKENIZER, 20, 512, 'left')
+    obs = Observation.init_from_sample(sample=str_buff, tokenizer=TOKENIZER, max_input_length=512, max_context_length=512, prompt_truncation_side='right')
+    #print([tensor.shape for key, tensor in obs.to_dict().items()])
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
     obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
     generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
-    print()
+    #print(obs_tensor)
     gen_output = AGENT.generate(
-        input_ids=generation_inputs.inputs,
-        attention_mask=generation_inputs.attention_masks,
+        input_ids=generation_inputs.inputs.unsqueeze(1),
+        attention_mask=generation_inputs.attention_masks.unsqueeze(1),
+        #max_prompt_length=512,
+        #texts=["\x13\x13\x13\x13\xb3\x00\x13\x13"],
         tokenizer=TOKENIZER,
+        #gen_kwargs={}
     )
-    print(gen_output)
     episode_starts = np.ones((1,), dtype=bool)
     episode_wise_transitions = [[]]
     ep_terminated = np.zeros((1,), dtype=bool)
@@ -275,18 +279,23 @@ def havoc_mutation_action(buf):
         if gen_output.action_masks is not None
         else [None] * len(gen_output.step_wise_logprobs)
     )
-
+    print(len(gen_output.step_wise_actions))
+    counter = 1
     for actions_tensor, _, action_mask in zip(
         gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
     ):
         # if all episodes are done, just break and do not continue
         if np.all(ep_terminated):
             break
-
+        print(counter)
+        counter += 1
         # evaluate actions with actions from rollout
         with torch.no_grad():
+            #print(torch.cuda.memory_summary(abbreviated=False))
+            torch.cuda.empty_cache()
             obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
-
+            for key, value in obs_tensor.items():
+                obs_tensor[key] = value.unsqueeze(1)
             # get log probs (TBD: generalize this a bit)
             policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
@@ -342,7 +351,9 @@ def havoc_mutation_action(buf):
 
         rewards =  np.zeros((1,))
         actions = actions_tensor.cpu().numpy()
+        dones = np.zeros((1,))
         total_rewards = rewards + kl_rewards.cpu().numpy()
+        infos = [{}] 
 
         # unpack individual observations
         unpacked_obs = unpack_observations(obs_tensor, 1)
@@ -377,9 +388,10 @@ def havoc_mutation_action(buf):
         episode_starts = np.zeros((1,), dtype=bool)
 
     # now we flush all episode wise info to the 1-D buffer
-    rollout_info = self._add_to_buffer(
-        rollout_buffer, episode_wise_transitions, rollout_info
+    rollout_info = add_to_buffer(
+        ROLLOUTS, episode_wise_transitions, rollout_info
     )
+    print(ROLLOUTS)
     STEP_COUNTER += 1
     TOTAL_STEP_COUNTER += 1
 
@@ -470,9 +482,9 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
-    ROLLOUTS.returns[-1] = torch.tensor([reward])
+    ROLLOUTS.returns[-1] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
-
+    ROLLOUTS.dones[-1] = np.ones((1,))
 
 
     if ROLLOUTS.full:
@@ -603,6 +615,7 @@ if __name__ == '__main__':
     init(3)
     for i in range(10):
         testbyte = bytearray([1, 2, 3, 4])
+
         action = havoc_mutation_action(testbyte)
         print(f"action: {action}")
         print(f"step counter: {STEP_COUNTER}")
