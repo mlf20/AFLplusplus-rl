@@ -69,12 +69,12 @@ PPO_EPOCH           = 4
 NUM_MINI_BATCH      = 1
 VALUE_LOSS_COEF     = 0.5
 ENTROPY_COEF        = 0.01
-LEARNING_RATE       = 0.000001
+LEARNING_RATE       = 0.00001
 EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
 GAMMA               = 0.99
-BATCH_SIZE          = 48
+BATCH_SIZE          = 1
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
@@ -347,7 +347,7 @@ def havoc_mutation_action(buf):
             # compute KL rewards
             kl_div = raw_log_probs - ref_log_probs
             kl_rewards = -1 * KLCONTROLLER.kl_coeff * kl_div
-
+            torch.cuda.empty_cache()
         rewards =  np.zeros((1,))
         actions = actions_tensor.cpu().numpy()
         dones = np.zeros((1,))
@@ -534,6 +534,15 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 print(rollout_data.observations)
                 print([tens.shape for tens in rollout_data.observations.values()])
                 print(rollout_data.observations["input_encoded_pt"].shape)
+                #rollout_data.observations["prompt_or_input_attention_mask_pt"].detach()
+                #rollout_data.observations["prompt_or_input_encoded_pt"].detach()
+                #rollout_data.observations["context_encoded_pt"].detach()
+                #rollout_data.observations["context_attention_mask_pt"].detach()
+                for value in rollout_data.observations["input_encoded_pt"][0]:
+                    if 'inf' in str(value) or 'nan' in  str(value):
+                        print(value)
+                print(torch.max(rollout_data.observations["input_encoded_pt"][0]))
+                print(torch.min(rollout_data.observations["input_encoded_pt"][0]))
                 evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
                     rollout_data.observations, actions)
                 values, log_prob, entropy = evaluation_output.values, evaluation_output.log_prob, evaluation_output.entropy
@@ -555,13 +564,13 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 # clipped surrogate loss
                 policy_loss_1 = advantages * ratio
                 policy_loss_2 = advantages * \
-                    torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
+                    torch.clamp(ratio, 1 - CLIP_PARAM, 1 + CLIP_PARAM)
                 policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
 
                 # Logging
                 pg_losses.append(policy_loss.item())
                 clip_fraction = torch.mean(
-                    (torch.abs(ratio - 1) > clip_range).float()).item()
+                    (torch.abs(ratio - 1) > CLIP_PARAM).float()).item()
                 clip_fractions.append(clip_fraction)
 
                 values_pred = values
@@ -593,7 +602,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 loss.backward()
                 # Clip grad norm
                 torch.nn.utils.clip_grad_norm_(
-                    AGENT.parameters(), self.max_grad_norm)
+                    AGENT.parameters(), 0.5)
                 AGENT.optimizer.step()
 
             if not continue_training:
@@ -635,6 +644,7 @@ if __name__ == '__main__':
         action = havoc_mutation_action(testbyte)
         print(f"action: {action}")
         print(f"step counter: {STEP_COUNTER}")
+        torch.cuda.empty_cache()
         havoc_mutation_reward(0,0)
         havoc_mutation_reset()
 
