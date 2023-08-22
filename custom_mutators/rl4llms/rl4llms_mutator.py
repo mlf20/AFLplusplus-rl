@@ -58,7 +58,7 @@ STATE = []
 MAX_ACTIONS         = TOKENIZER.vocab_size
 #OBSERVATION_SPACE   = gym.spaces.Box(0, 3000, (9216, ), dtype=int) # max seen in testing 8348 int so 2^13*1.125 = 9216  8348??
 ACTION_SPACE        = gym.spaces.Discrete(MAX_ACTIONS)
-MAX_STEPS           = 86 # Taken from maximum value of mutations that can be done by AFL. Though AFL takes a random number of steps (4,8,16,26,46,86) when doing so
+MAX_STEPS           = 32 # Taken from maximum value of mutations that can be done by AFL. Though AFL takes a random number of steps (4,8,16,26,46,86) when doing so
 STEP_COUNTER        = 0
 
 
@@ -74,7 +74,7 @@ EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
 GAMMA               = 0.99
-BATCH_SIZE          = 64
+BATCH_SIZE          = 48
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
@@ -97,10 +97,10 @@ OBSERVATION_SPACE = DictSpace(
                 "input_encoded_pt": spaces.Box(
                     low=0,
                     high=TOKENIZER.vocab_size,
-                    shape=(MODEL_MAX_LENGTH + MAX_STEPS,),
+                    shape=(MODEL_MAX_LENGTH,),
                 ),
                 "input_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(MODEL_MAX_LENGTH + MAX_STEPS,)
+                    low=0, high=1, shape=(MODEL_MAX_LENGTH,)
                 ),
             }
         )
@@ -280,7 +280,6 @@ def havoc_mutation_action(buf):
         if gen_output.action_masks is not None
         else [None] * len(gen_output.step_wise_logprobs)
     )
-    print(len(gen_output.step_wise_actions))
     counter = 1
     for actions_tensor, _, action_mask in zip(
         gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
@@ -301,7 +300,6 @@ def havoc_mutation_action(buf):
             policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
             )
-
             policy_outputs: PolicyOutput = AGENT.forward_policy(
                 **policy_kwargs
             )
@@ -358,7 +356,6 @@ def havoc_mutation_action(buf):
 
         # unpack individual observations
         unpacked_obs = unpack_observations(obs_tensor, 1)
-
         # store episode wise transitions separately
         for env_ix in range(1):
             # only if not terminated already
@@ -385,14 +382,13 @@ def havoc_mutation_action(buf):
             # mark this episode to terminated if done occurs once
             if dones[env_ix]:
                 ep_terminated[env_ix] = True
-
         episode_starts = np.zeros((1,), dtype=bool)
 
     # now we flush all episode wise info to the 1-D buffer
     ROLLOUT_INFO = add_to_buffer(
         ROLLOUTS, episode_wise_transitions, ROLLOUT_INFO
     )
-    print(ROLLOUTS)
+    print([(key, val.shape) for key, val in ROLLOUTS.observations.items()])
     STEP_COUNTER += 1
     TOTAL_STEP_COUNTER += 1
 
@@ -504,9 +500,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     ROLLOUTS.returns[-1] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
     ROLLOUTS.action_masks[-1] = np.ones((1,))
-    print(len(ROLLOUTS.actions))
-    print(ROLLOUTS.actions)
-    print(ROLLOUTS.get(1))
     if ROLLOUTS.full:
         aggregated_rollout_info = {}
         for key, values in ROLLOUT_INFO.items():
@@ -527,9 +520,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
         clip_fractions = []
 
         continue_training = True
-        print(len(ROLLOUTS.actions))
-        print(ROLLOUTS.get(1))
-                # train for n_epochs epochs
+        # train for n_epochs epochs
         for epoch in range(PPO_EPOCH):
             approx_kl_divs = []
             # Do a complete pass on the rollout buffer
@@ -540,7 +531,9 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
 
-
+                print(rollout_data.observations)
+                print([tens.shape for tens in rollout_data.observations.values()])
+                print(rollout_data.observations["input_encoded_pt"].shape)
                 evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
                     rollout_data.observations, actions)
                 values, log_prob, entropy = evaluation_output.values, evaluation_output.log_prob, evaluation_output.entropy
