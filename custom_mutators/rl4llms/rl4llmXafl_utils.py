@@ -6,8 +6,7 @@ import numpy as np
 import torch
 from typing import Dict, Any
 
-def add_to_buffer(
-    self, rollout_buffer, episode_wise_transitions, rollout_info
+def add_to_buffer(rollout_buffer, episode_wise_transitions, rollout_info
 ):
 
     advantages_computed = False
