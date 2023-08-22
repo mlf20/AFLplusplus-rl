@@ -247,6 +247,7 @@ def havoc_mutation_action(buf):
     global OBSERVATION_SPACE
     global ROLLOUTS
     global TOTAL_STEP_COUNTER
+    global ROLLOUT_INFO
 
 
     # Convert state to numpy fixed size
@@ -388,8 +389,8 @@ def havoc_mutation_action(buf):
         episode_starts = np.zeros((1,), dtype=bool)
 
     # now we flush all episode wise info to the 1-D buffer
-    rollout_info = add_to_buffer(
-        ROLLOUTS, episode_wise_transitions, rollout_info
+    ROLLOUT_INFO = add_to_buffer(
+        ROLLOUTS, episode_wise_transitions, ROLLOUT_INFO
     )
     print(ROLLOUTS)
     STEP_COUNTER += 1
@@ -410,10 +411,11 @@ def havoc_mutation_reset():
     global SAVE_FREQ
     global SAVE_DIR
     global AGENT
+    global ROLLOUT_INFO
     AGENT.set_training_mode(False)
 
 
-    rollout_info = {
+    ROLLOUT_INFO = {
         "rollout_info/ep_rew": [],
         "rollout_info/kl_div_mean": [],
         "rollout_info/ep_lens": [],
@@ -613,6 +615,7 @@ def introspection():
 
 if __name__ == '__main__':
     init(3)
+    havoc_mutation_reset()
     for i in range(10):
         testbyte = bytearray([1, 2, 3, 4])
 
