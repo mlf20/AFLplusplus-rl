@@ -535,9 +535,9 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
 
-                print(rollout_data.observations)
-                print([tens.shape for tens in rollout_data.observations.values()])
-                print(rollout_data.observations["input_encoded_pt"].shape)
+                #print(rollout_data.observations)
+                print([(val, tens.shape) for val, tens in rollout_data.observations.items()])
+                #print(rollout_data.observations["input_encoded_pt"].shape)
                 #rollout_data.observations["prompt_or_input_attention_mask_pt"].detach()
                 #rollout_data.observations["prompt_or_input_encoded_pt"].detach()
                 #rollout_data.observations["context_encoded_pt"].detach()
