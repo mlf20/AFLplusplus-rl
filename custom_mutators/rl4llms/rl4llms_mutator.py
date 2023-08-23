@@ -83,16 +83,16 @@ OBSERVATION_SPACE = DictSpace(
                 # we have to provide fixed sized inputs (padded) because sb3 support for DictObsersevation is limited
                 # while creating rollout buffers, observations are concatenated for each key
                 "prompt_or_input_encoded_pt": spaces.Box(
-                    low=0, high=TOKENIZER.vocab_size, shape=(MODEL_MAX_LENGTH,)
+                    low=0, high=TOKENIZER.vocab_size, shape=(MODEL_MAX_LENGTH/2,)
                 ),
                 "prompt_or_input_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(MODEL_MAX_LENGTH,)
+                    low=0, high=1, shape=(MODEL_MAX_LENGTH/2,)
                 ),
                 "context_encoded_pt": spaces.Box(
-                    low=0, high=TOKENIZER.vocab_size, shape=(MAX_STEPS,)
+                    low=0, high=TOKENIZER.vocab_size, shape=(MODEL_MAX_LENGTH/2,)
                 ),
                 "context_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(MAX_STEPS,)
+                    low=0, high=1, shape=(MODEL_MAX_LENGTH/2,)
                 ),
                 "input_encoded_pt": spaces.Box(
                     low=0,
