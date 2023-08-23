@@ -350,8 +350,6 @@ def havoc_mutation_action(buf):
             torch.cuda.empty_cache()
 
         actions = actions_tensor.cpu().numpy()
-        obs = obs.update(actions[0], TOKENIZER)
-        obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
         rewards =  np.zeros((1,))
         dones = np.zeros((1,))
         total_rewards = rewards + kl_rewards.cpu().numpy()
@@ -386,6 +384,9 @@ def havoc_mutation_action(buf):
             if dones[env_ix]:
                 ep_terminated[env_ix] = True
         episode_starts = np.zeros((1,), dtype=bool)
+        obs = obs.update(actions[0], TOKENIZER)
+        obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+
 
     # now we flush all episode wise info to the 1-D buffer
     ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
