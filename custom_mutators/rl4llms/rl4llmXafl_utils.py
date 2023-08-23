@@ -105,7 +105,7 @@ def unpack_observations(obs_tensor, n_envs: int):
     for env_ix in range(n_envs):
         obs_dict = {}
         for key in keys:
-            obs_dict[key] = obs_tensor[key][env_ix].reshape(1, -1).cpu()
+            obs_dict[key] = obs_tensor[key].reshape(1, -1).cpu()
         unpacked_obs.append(obs_dict)
     return unpacked_obs
 
