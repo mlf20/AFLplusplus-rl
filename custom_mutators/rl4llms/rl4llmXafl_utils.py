@@ -34,22 +34,24 @@ def add_to_buffer(rollout_buffer, episode_wise_transitions, rollout_info
                     transition.log_prob,
                     action_masks=transition.action_mask,
                 )
+            #if rollout_buffer.full:
+            #    print('what is happening')
 
             # if the buffer is full, compute advantages
-            if rollout_buffer.full and not advantages_computed:
+            #if rollout_buffer.full and not advantages_computed:
 
-                # we fetch the last value for the last time step
-                # values come from the next transitions's values
-                next_values = (
-                    transitions[transition_ix + 1].value
-                    if (transition_ix + 1) < ep_length
-                    else torch.tensor([0.0])
-                )
+            #    # we fetch the last value for the last time step
+            #    # values come from the next transitions's values
+            #    next_values = (
+            #        transitions[transition_ix + 1].value
+            #        if (transition_ix + 1) < ep_length
+            #        else torch.tensor([0.0])
+            #    )
 
-                rollout_buffer.compute_returns_and_advantage(
-                    last_values=next_values, dones=transition.done
-                )
-                advantages_computed = True
+            #    rollout_buffer.compute_returns_and_advantage(
+            #        last_values=next_values, dones=transition.done
+            #    )
+            #    advantages_computed = True
 
         rollout_info["rollout_info/ep_rew"].append(total_reward)
         rollout_info["rollout_info/ep_lens"].append(ep_length)

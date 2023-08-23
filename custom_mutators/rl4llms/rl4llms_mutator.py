@@ -52,7 +52,7 @@ ROLLOUT_INFO = None
 TOKENIZER = AutoTokenizer.from_pretrained('byte_gpt2')
 MODEL_MAX_LENGTH = TOKENIZER.model_max_length
 KLCONTROLLER = KLController(0.1, 0.1)
-
+MAX_TEXT_LENGTH = 64
 # Environment Parameters
 STATE = []
 MAX_ACTIONS         = TOKENIZER.vocab_size
@@ -74,7 +74,7 @@ EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
 GAMMA               = 0.99
-BATCH_SIZE          = 1
+BATCH_SIZE          = 2
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
@@ -83,24 +83,24 @@ OBSERVATION_SPACE = DictSpace(
                 # we have to provide fixed sized inputs (padded) because sb3 support for DictObsersevation is limited
                 # while creating rollout buffers, observations are concatenated for each key
                 "prompt_or_input_encoded_pt": spaces.Box(
-                    low=0, high=TOKENIZER.vocab_size, shape=(int(MODEL_MAX_LENGTH/2),)
+                    low=0, high=TOKENIZER.vocab_size, shape=(MAX_TEXT_LENGTH,)
                 ),
                 "prompt_or_input_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(int(MODEL_MAX_LENGTH/2),)
+                    low=0, high=1, shape=(MAX_TEXT_LENGTH,)
                 ),
                 "context_encoded_pt": spaces.Box(
-                    low=0, high=TOKENIZER.vocab_size, shape=(int(MODEL_MAX_LENGTH/2),)
+                    low=0, high=TOKENIZER.vocab_size, shape=(MAX_STEPS,)
                 ),
                 "context_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(int(MODEL_MAX_LENGTH/2),)
+                    low=0, high=1, shape=(MAX_STEPS,)
                 ),
                 "input_encoded_pt": spaces.Box(
                     low=0,
                     high=TOKENIZER.vocab_size,
-                    shape=(MODEL_MAX_LENGTH,),
+                    shape=(MAX_TEXT_LENGTH + MAX_STEPS,),
                 ),
                 "input_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(MODEL_MAX_LENGTH,)
+                    low=0, high=1, shape=(MAX_TEXT_LENGTH + MAX_STEPS,)
                 ),
             }
         )
@@ -255,15 +255,23 @@ def havoc_mutation_action(buf):
     #str_buff = "".join([str(hex(x)) for x in list(buf)])
     str_buff = str(buf)[12:-2]
     str_buff = Sample(1, str_buff, ['byte_string'])
-    obs = Observation.init_from_sample(sample=str_buff, tokenizer=TOKENIZER, max_input_length=512, max_context_length=512, prompt_truncation_side='right')
+    obs = Observation.init_from_sample(sample=str_buff, tokenizer=TOKENIZER, max_input_length=MAX_TEXT_LENGTH, max_context_length=MAX_STEPS, prompt_truncation_side='right')
     #print([tensor.shape for key, tensor in obs.to_dict().items()])
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
-    obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
-    generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
+    #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+    obs_tensor = obs_as_tensor({
+        "prompt_or_input_encoded_pt": obs.prompt_or_input_encoded_pt.numpy(),
+        "prompt_or_input_attention_mask_pt": obs.prompt_or_input_attention_mask_pt.numpy(),
+        "context_encoded_pt": obs.context_encoded_pt.numpy(),
+        "context_attention_mask_pt": obs.context_attention_mask_pt.numpy(),
+        "input_encoded_pt": obs.input_encoded_pt.numpy(),
+        "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
+    }, DEVICE)
+    #generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
     #print(obs_tensor)
     gen_output = AGENT.generate(
-        input_ids=generation_inputs.inputs.unsqueeze(1),
-        attention_mask=generation_inputs.attention_masks.unsqueeze(1),
+        input_ids=obs_tensor["input_encoded_pt"],
+        attention_mask=obs_tensor["input_attention_mask_pt"],
         #max_prompt_length=512,
         #texts=["\x13\x13\x13\x13\xb3\x00\x13\x13"],
         tokenizer=TOKENIZER,
@@ -294,8 +302,8 @@ def havoc_mutation_action(buf):
             #print(torch.cuda.memory_summary(abbreviated=False))
             torch.cuda.empty_cache()
             #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
-            for key, value in obs_tensor.items():
-                obs_tensor[key] = value.unsqueeze(1)
+            #for key, value in obs_tensor.items():
+            #    obs_tensor[key] = value.unsqueeze(1)
             # get log probs (TBD: generalize this a bit)
             policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
@@ -385,7 +393,14 @@ def havoc_mutation_action(buf):
                 ep_terminated[env_ix] = True
         episode_starts = np.zeros((1,), dtype=bool)
         obs = obs.update(actions[0], TOKENIZER)
-        obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+        obs_tensor = obs_as_tensor({
+           "prompt_or_input_encoded_pt": obs.prompt_or_input_encoded_pt.numpy(),
+           "prompt_or_input_attention_mask_pt": obs.prompt_or_input_attention_mask_pt.numpy(),
+           "context_encoded_pt": obs.context_encoded_pt.numpy(),
+           "context_attention_mask_pt": obs.context_attention_mask_pt.numpy(),
+           "input_encoded_pt": obs.input_encoded_pt.numpy(),
+           "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
+        }, DEVICE)
 
 
     # now we flush all episode wise info to the 1-D buffer
@@ -501,10 +516,12 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
-    ROLLOUTS.returns[-1] = np.array([reward])
+    ROLLOUTS.rewards[-1] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
-    ROLLOUTS.action_masks[-1] = np.ones((1,))
+    ROLLOUTS.action_masks[-1] = np.zeros((1,))
     if ROLLOUTS.full:
+        ROLLOUTS.compute_returns_and_advantage(last_values=torch.tensor([0.0]), dones=0.0)
+
         aggregated_rollout_info = {}
         for key, values in ROLLOUT_INFO.items():
             aggregated_rollout_info[key] = np.mean(values).item()
