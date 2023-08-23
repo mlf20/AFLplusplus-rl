@@ -413,7 +413,7 @@ def havoc_mutation_action(buf):
     #GLOBAL_ARRAY.append(action)
     #print(GLOBAL_ARRAY)
     #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
-    string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'])
+    string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
     byte_arr = bytearray(string_array.encode('utf-8'))
     return byte_arr
 
