@@ -27,7 +27,6 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn import functional as F
 from gym.spaces.dict import Dict as DictSpace
 from gym import spaces
-from transformers import pipeline, PreTrainedTokenizerFast
 from transformers import AutoTokenizer
 from rl4lms.envs.text_generation.policy.causal_policy import CausalLMActorCriticPolicy
 from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
@@ -50,7 +49,7 @@ ROLLOUT_INFO = None
 TOKENIZER = AutoTokenizer.from_pretrained('byte_gpt2')
 MODEL_MAX_LENGTH = TOKENIZER.model_max_length
 KLCONTROLLER = KLController(0.1, 0.1)
-
+MAX_TEXT_LENGTH = 64
 # Environment Parameters
 STATE = []
 MAX_ACTIONS         = TOKENIZER.vocab_size
@@ -67,12 +66,12 @@ PPO_EPOCH           = 4
 NUM_MINI_BATCH      = 1
 VALUE_LOSS_COEF     = 0.5
 ENTROPY_COEF        = 0.01
-LEARNING_RATE       = 0.000001
+LEARNING_RATE       = 0.00001
 EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
 GAMMA               = 0.99
-BATCH_SIZE          = 48
+BATCH_SIZE          = 2
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
@@ -81,10 +80,10 @@ OBSERVATION_SPACE = DictSpace(
                 # we have to provide fixed sized inputs (padded) because sb3 support for DictObsersevation is limited
                 # while creating rollout buffers, observations are concatenated for each key
                 "prompt_or_input_encoded_pt": spaces.Box(
-                    low=0, high=TOKENIZER.vocab_size, shape=(MODEL_MAX_LENGTH,)
+                    low=0, high=TOKENIZER.vocab_size, shape=(MAX_TEXT_LENGTH,)
                 ),
                 "prompt_or_input_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(MODEL_MAX_LENGTH,)
+                    low=0, high=1, shape=(MAX_TEXT_LENGTH,)
                 ),
                 "context_encoded_pt": spaces.Box(
                     low=0, high=TOKENIZER.vocab_size, shape=(MAX_STEPS,)
@@ -95,10 +94,10 @@ OBSERVATION_SPACE = DictSpace(
                 "input_encoded_pt": spaces.Box(
                     low=0,
                     high=TOKENIZER.vocab_size,
-                    shape=(MODEL_MAX_LENGTH,),
+                    shape=(MAX_TEXT_LENGTH + MAX_STEPS,),
                 ),
                 "input_attention_mask_pt": spaces.Box(
-                    low=0, high=1, shape=(MODEL_MAX_LENGTH,)
+                    low=0, high=1, shape=(MAX_TEXT_LENGTH + MAX_STEPS,)
                 ),
             }
         )
@@ -203,42 +202,13 @@ def fuzz(buf, add_buf, max_size):
 
 def havoc_mutation(buf, max_size):
     '''
-    Perform a single custom mutation on a given input.
-
-    @type buf: bytearray
-    @param buf: The buffer that should be mutated.
-
-    @type max_size: int
-    @param max_size: Maximum size of the mutated output. The mutation must not
-        produce data larger than max_size.
-
-    @rtype: bytearray
-    @return: A new bytearray containing the mutated data
-    '''
-
-    return mutated_buf
-
-def havoc_mutation_probability():
-    '''
-    Called for each `havoc_mutation`. Return the probability (in percentage)
-    that `havoc_mutation` is called in havoc. Be default it is 6%.
-
-    @rtype: int
-    @return: The probability (0-100)
-    '''
-    global MAX_ACTIONS
-    prob = random.randint(0, MAX_ACTIONS)
-    return prob
-
-def havoc_mutation_action(buf):
-    '''
     Called for each `havoc_mutation`.
     For a given buffer return the mutation action to be taken by AFL.
     @type buf: bytearray
     @param buf: The buffer that should be mutated.
 
-    @rtype: int
-    @return: The action (0-26)
+    @rtype: bytearray
+    @return: The Mutated Buffer
     '''
     global STEP_COUNTER
     global AGENT
@@ -249,19 +219,26 @@ def havoc_mutation_action(buf):
 
 
     # Convert state to numpy fixed size
-    int_list = [int(str(hex(x)), 16) for x in list(buf)]
     #str_buff = "".join([str(hex(x)) for x in list(buf)])
     str_buff = str(buf)[12:-2]
     str_buff = Sample(1, str_buff, ['byte_string'])
-    obs = Observation.init_from_sample(sample=str_buff, tokenizer=TOKENIZER, max_input_length=512, max_context_length=512, prompt_truncation_side='right')
+    obs = Observation.init_from_sample(sample=str_buff, tokenizer=TOKENIZER, max_input_length=MAX_TEXT_LENGTH, max_context_length=MAX_STEPS, prompt_truncation_side='right')
     #print([tensor.shape for key, tensor in obs.to_dict().items()])
     #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
-    obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
-    generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
+    #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+    obs_tensor = obs_as_tensor({
+        "prompt_or_input_encoded_pt": obs.prompt_or_input_encoded_pt.numpy(),
+        "prompt_or_input_attention_mask_pt": obs.prompt_or_input_attention_mask_pt.numpy(),
+        "context_encoded_pt": obs.context_encoded_pt.numpy(),
+        "context_attention_mask_pt": obs.context_attention_mask_pt.numpy(),
+        "input_encoded_pt": obs.input_encoded_pt.numpy(),
+        "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
+    }, DEVICE)
+    #generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
     #print(obs_tensor)
     gen_output = AGENT.generate(
-        input_ids=generation_inputs.inputs.unsqueeze(1),
-        attention_mask=generation_inputs.attention_masks.unsqueeze(1),
+        input_ids=obs_tensor["input_encoded_pt"],
+        attention_mask=obs_tensor["input_attention_mask_pt"],
         #max_prompt_length=512,
         #texts=["\x13\x13\x13\x13\xb3\x00\x13\x13"],
         tokenizer=TOKENIZER,
@@ -278,22 +255,20 @@ def havoc_mutation_action(buf):
         if gen_output.action_masks is not None
         else [None] * len(gen_output.step_wise_logprobs)
     )
-    counter = 1
+
     for actions_tensor, _, action_mask in zip(
         gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
     ):
         # if all episodes are done, just break and do not continue
         if np.all(ep_terminated):
             break
-        print(counter)
-        counter += 1
         # evaluate actions with actions from rollout
         with torch.no_grad():
             #print(torch.cuda.memory_summary(abbreviated=False))
             torch.cuda.empty_cache()
-            obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
-            for key, value in obs_tensor.items():
-                obs_tensor[key] = value.unsqueeze(1)
+            #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+            #for key, value in obs_tensor.items():
+            #    obs_tensor[key] = value.unsqueeze(1)
             # get log probs (TBD: generalize this a bit)
             policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
@@ -345,9 +320,10 @@ def havoc_mutation_action(buf):
             # compute KL rewards
             kl_div = raw_log_probs - ref_log_probs
             kl_rewards = -1 * KLCONTROLLER.kl_coeff * kl_div
+            torch.cuda.empty_cache()
 
-        rewards =  np.zeros((1,))
         actions = actions_tensor.cpu().numpy()
+        rewards =  np.zeros((1,))
         dones = np.zeros((1,))
         total_rewards = rewards + kl_rewards.cpu().numpy()
         infos = [{}]
@@ -381,12 +357,21 @@ def havoc_mutation_action(buf):
             if dones[env_ix]:
                 ep_terminated[env_ix] = True
         episode_starts = np.zeros((1,), dtype=bool)
+        obs = obs.update(actions[0], TOKENIZER)
+        obs_tensor = obs_as_tensor({
+           "prompt_or_input_encoded_pt": obs.prompt_or_input_encoded_pt.numpy(),
+           "prompt_or_input_attention_mask_pt": obs.prompt_or_input_attention_mask_pt.numpy(),
+           "context_encoded_pt": obs.context_encoded_pt.numpy(),
+           "context_attention_mask_pt": obs.context_attention_mask_pt.numpy(),
+           "input_encoded_pt": obs.input_encoded_pt.numpy(),
+           "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
+        }, DEVICE)
+
 
     # now we flush all episode wise info to the 1-D buffer
-    ROLLOUT_INFO = add_to_buffer(
+    ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
         ROLLOUTS, episode_wise_transitions, ROLLOUT_INFO
     )
-    print([(key, val.shape) for key, val in ROLLOUTS.observations.items()])
     STEP_COUNTER += 1
     TOTAL_STEP_COUNTER += 1
 
@@ -394,18 +379,208 @@ def havoc_mutation_action(buf):
     #action = random.randint(0, MAX_ACTIONS)
     #GLOBAL_ARRAY.append(action)
     #print(GLOBAL_ARRAY)
-    print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
-    string_array = TOKENIZER.decode(actions_tensor)
+    #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
+    string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
     byte_arr = bytearray(string_array.encode('utf-8'))
-    print('string_array.encode(utf-8)')
-    print(string_array.encode('utf-8'))
-    print('string')
-    print(string_array)
-    print('bytearray')
-    print(byte_arr)
-    print('1234 bytearray')
-    print(bytearray('\x45\x83'.encode('utf-8')))
-    print(bytearray([1,2,3,4]))
+
+    byte_arr=byte_arr[:max_size]
+    return byte_arr
+
+def havoc_mutation_probability():
+    '''
+    Called for each `havoc_mutation`. Return the probability (in percentage)
+    that `havoc_mutation` is called in havoc. Be default it is 6%.
+
+    @rtype: int
+    @return: The probability (0-100)
+    '''
+
+
+    return 100
+
+def havoc_mutation_action(buf):
+    '''
+    Called for each `havoc_mutation`.
+    For a given buffer return the mutation action to be taken by AFL.
+    @type buf: bytearray
+    @param buf: The buffer that should be mutated.
+
+    @rtype: bytearray
+    @return: The Mutated Buffer
+    '''
+    global STEP_COUNTER
+    global AGENT
+    global OBSERVATION_SPACE
+    global ROLLOUTS
+    global TOTAL_STEP_COUNTER
+    global ROLLOUT_INFO
+
+
+    # Convert state to numpy fixed size
+    int_list = [int(str(hex(x)), 16) for x in list(buf)]
+    #str_buff = "".join([str(hex(x)) for x in list(buf)])
+    str_buff = str(buf)[12:-2]
+    str_buff = Sample(1, str_buff, ['byte_string'])
+    obs = Observation.init_from_sample(sample=str_buff, tokenizer=TOKENIZER, max_input_length=MAX_TEXT_LENGTH, max_context_length=MAX_STEPS, prompt_truncation_side='right')
+    #print([tensor.shape for key, tensor in obs.to_dict().items()])
+    #padded_state = np.pad(int_list, (0,OBSERVATION_SPACE.shape[0] - len(int_list) % OBSERVATION_SPACE.shape[0]), 'constant')
+    #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+    obs_tensor = obs_as_tensor({
+        "prompt_or_input_encoded_pt": obs.prompt_or_input_encoded_pt.numpy(),
+        "prompt_or_input_attention_mask_pt": obs.prompt_or_input_attention_mask_pt.numpy(),
+        "context_encoded_pt": obs.context_encoded_pt.numpy(),
+        "context_attention_mask_pt": obs.context_attention_mask_pt.numpy(),
+        "input_encoded_pt": obs.input_encoded_pt.numpy(),
+        "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
+    }, DEVICE)
+    #generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
+    #print(obs_tensor)
+    gen_output = AGENT.generate(
+        input_ids=obs_tensor["input_encoded_pt"],
+        attention_mask=obs_tensor["input_attention_mask_pt"],
+        #max_prompt_length=512,
+        #texts=["\x13\x13\x13\x13\xb3\x00\x13\x13"],
+        tokenizer=TOKENIZER,
+        #gen_kwargs={}
+    )
+    episode_starts = np.ones((1,), dtype=bool)
+    episode_wise_transitions = [[]]
+    ep_terminated = np.zeros((1,), dtype=bool)
+    value_past_state = None
+    ref_past_state = None
+    policy_past_state = None
+    masks = (
+        gen_output.action_masks
+        if gen_output.action_masks is not None
+        else [None] * len(gen_output.step_wise_logprobs)
+    )
+
+    for actions_tensor, _, action_mask in zip(
+        gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
+    ):
+        # if all episodes are done, just break and do not continue
+        if np.all(ep_terminated):
+            break
+        # evaluate actions with actions from rollout
+        with torch.no_grad():
+            #print(torch.cuda.memory_summary(abbreviated=False))
+            torch.cuda.empty_cache()
+            #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+            #for key, value in obs_tensor.items():
+            #    obs_tensor[key] = value.unsqueeze(1)
+            # get log probs (TBD: generalize this a bit)
+            policy_kwargs = get_policy_kwargs(
+                obs_tensor, actions_tensor, policy_past_state, action_mask
+            )
+            policy_outputs: PolicyOutput = AGENT.forward_policy(
+                **policy_kwargs
+            )
+            raw_log_probs, log_probs, policy_past_state = (
+                policy_outputs.raw_log_probs,
+                policy_outputs.log_probs,
+                policy_outputs.past_model_kwargs,
+            )
+
+            # sanity check
+            assert torch.all(
+                torch.isfinite(log_probs)
+            ), "Infinite values in log probs"
+
+            # sanity check
+            assert torch.all(
+                torch.isfinite(raw_log_probs)
+            ), "Infinite values in log probs"
+
+            # get values
+            value_outputs: ValueOutput = AGENT.forward_value(
+                obs_tensor, value_past_state
+            )
+            values, value_past_state = (
+                value_outputs.values,
+                value_outputs.past_model_kwargs,
+            )
+
+            # get reference log probs
+            ref_policy_outputs: RefPolicyOutput = (
+                AGENT.get_log_probs_ref_model(
+                    obs_tensor, actions_tensor, ref_past_state
+                )
+            )
+            ref_log_probs, ref_past_state = (
+                ref_policy_outputs.log_probs,
+                ref_policy_outputs.past_model_kwargs,
+            )
+
+            # sanity check
+            assert torch.all(
+                torch.isfinite(ref_log_probs)
+            ), "Infinite values in log probs"
+
+            # compute KL rewards
+            kl_div = raw_log_probs - ref_log_probs
+            kl_rewards = -1 * KLCONTROLLER.kl_coeff * kl_div
+            torch.cuda.empty_cache()
+
+        actions = actions_tensor.cpu().numpy()
+        rewards =  np.zeros((1,))
+        dones = np.zeros((1,))
+        total_rewards = rewards + kl_rewards.cpu().numpy()
+        infos = [{}]
+
+        # unpack individual observations
+        unpacked_obs = unpack_observations(obs_tensor, 1)
+        # store episode wise transitions separately
+        for env_ix in range(1):
+            # only if not terminated already
+            if not ep_terminated[env_ix]:
+                transtion = TransitionInfo(
+                    observation=unpacked_obs[env_ix],
+                    action=actions[env_ix],
+                    task_reward=rewards[env_ix],
+                    total_reward=total_rewards[env_ix],
+                    kl_div=kl_div.cpu().numpy()[env_ix],
+                    episode_start=episode_starts[env_ix],
+                    value=values[env_ix].cpu(),
+                    log_prob=log_probs[env_ix].cpu(),
+                    done=dones[env_ix],
+                    ref_log_prob=ref_log_probs[env_ix].cpu(),
+                    kl_reward=kl_rewards.cpu().numpy()[env_ix],
+                    action_mask=action_mask[env_ix].cpu().numpy()
+                    if action_mask is not None else None,
+                    info=infos[env_ix],
+                )
+
+                episode_wise_transitions[env_ix].append(transtion)
+
+            # mark this episode to terminated if done occurs once
+            if dones[env_ix]:
+                ep_terminated[env_ix] = True
+        episode_starts = np.zeros((1,), dtype=bool)
+        obs = obs.update(actions[0], TOKENIZER)
+        obs_tensor = obs_as_tensor({
+           "prompt_or_input_encoded_pt": obs.prompt_or_input_encoded_pt.numpy(),
+           "prompt_or_input_attention_mask_pt": obs.prompt_or_input_attention_mask_pt.numpy(),
+           "context_encoded_pt": obs.context_encoded_pt.numpy(),
+           "context_attention_mask_pt": obs.context_attention_mask_pt.numpy(),
+           "input_encoded_pt": obs.input_encoded_pt.numpy(),
+           "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
+        }, DEVICE)
+
+
+    # now we flush all episode wise info to the 1-D buffer
+    ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
+        ROLLOUTS, episode_wise_transitions, ROLLOUT_INFO
+    )
+    STEP_COUNTER += 1
+    TOTAL_STEP_COUNTER += 1
+
+
+    #action = random.randint(0, MAX_ACTIONS)
+    #GLOBAL_ARRAY.append(action)
+    #print(GLOBAL_ARRAY)
+    #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
+    string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
+    byte_arr = bytearray(string_array.encode('utf-8'))
     return byte_arr
 
 def havoc_mutation_reset():
@@ -495,10 +670,12 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
-    ROLLOUTS.returns[-1] = np.array([reward])
+    ROLLOUTS.rewards[-1] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
-    ROLLOUTS.action_masks[-1] = np.ones((1,))
+    ROLLOUTS.action_masks[-1] = np.zeros((1,))
     if ROLLOUTS.full:
+        ROLLOUTS.compute_returns_and_advantage(last_values=torch.tensor([0.0]), dones=0.0)
+
         aggregated_rollout_info = {}
         for key, values in ROLLOUT_INFO.items():
             aggregated_rollout_info[key] = np.mean(values).item()
@@ -528,10 +705,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 if isinstance(ACTION_SPACE, spaces.Discrete):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
-
-                print(rollout_data.observations)
-                print([tens.shape for tens in rollout_data.observations.values()])
-                print(rollout_data.observations["input_encoded_pt"].shape)
                 evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
                     rollout_data.observations, actions)
                 values, log_prob, entropy = evaluation_output.values, evaluation_output.log_prob, evaluation_output.entropy
@@ -553,13 +726,13 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 # clipped surrogate loss
                 policy_loss_1 = advantages * ratio
                 policy_loss_2 = advantages * \
-                    torch.clamp(ratio, 1 - clip_range, 1 + clip_range)
+                    torch.clamp(ratio, 1 - CLIP_PARAM, 1 + CLIP_PARAM)
                 policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
 
                 # Logging
                 pg_losses.append(policy_loss.item())
                 clip_fraction = torch.mean(
-                    (torch.abs(ratio - 1) > clip_range).float()).item()
+                    (torch.abs(ratio - 1) > CLIP_PARAM).float()).item()
                 clip_fractions.append(clip_fraction)
 
                 values_pred = values
@@ -591,7 +764,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 loss.backward()
                 # Clip grad norm
                 torch.nn.utils.clip_grad_norm_(
-                    AGENT.parameters(), self.max_grad_norm)
+                    AGENT.parameters(), 0.5)
                 AGENT.optimizer.step()
 
             if not continue_training:
@@ -599,7 +772,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
         ROLLOUTS.reset()
 
 
-    print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
 
     TOTAL_EXECUTIONS += 1
@@ -633,6 +805,7 @@ if __name__ == '__main__':
         action = havoc_mutation_action(testbyte)
         print(f"action: {action}")
         print(f"step counter: {STEP_COUNTER}")
+        torch.cuda.empty_cache()
         havoc_mutation_reward(0,0)
         havoc_mutation_reset()
 
