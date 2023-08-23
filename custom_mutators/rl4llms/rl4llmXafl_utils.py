@@ -34,8 +34,6 @@ def add_to_buffer(rollout_buffer, episode_wise_transitions, rollout_info
                     transition.log_prob,
                     action_masks=transition.action_mask,
                 )
-            #if rollout_buffer.full:
-            #    print('what is happening')
 
             # if the buffer is full, compute advantages
             #if rollout_buffer.full and not advantages_computed:

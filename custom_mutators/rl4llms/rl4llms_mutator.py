@@ -288,15 +288,13 @@ def havoc_mutation_action(buf):
         if gen_output.action_masks is not None
         else [None] * len(gen_output.step_wise_logprobs)
     )
-    counter = 1
+
     for actions_tensor, _, action_mask in zip(
         gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
     ):
         # if all episodes are done, just break and do not continue
         if np.all(ep_terminated):
             break
-        print(counter)
-        counter += 1
         # evaluate actions with actions from rollout
         with torch.no_grad():
             #print(torch.cuda.memory_summary(abbreviated=False))
@@ -407,7 +405,6 @@ def havoc_mutation_action(buf):
     ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
         ROLLOUTS, episode_wise_transitions, ROLLOUT_INFO
     )
-    print([(key, val.shape) for key, val in ROLLOUTS.observations.items()])
     STEP_COUNTER += 1
     TOTAL_STEP_COUNTER += 1
 
@@ -415,18 +412,9 @@ def havoc_mutation_action(buf):
     #action = random.randint(0, MAX_ACTIONS)
     #GLOBAL_ARRAY.append(action)
     #print(GLOBAL_ARRAY)
-    print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
+    #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
     string_array = TOKENIZER.decode(actions_tensor)
     byte_arr = bytearray(string_array.encode('utf-8'))
-    print('string_array.encode(utf-8)')
-    print(string_array.encode('utf-8'))
-    print('string')
-    print(string_array)
-    print('bytearray')
-    print(byte_arr)
-    print('1234 bytearray')
-    print(bytearray('\x45\x83'.encode('utf-8')))
-    print(bytearray([1,2,3,4]))
     return byte_arr
 
 def havoc_mutation_reset():
@@ -551,19 +539,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 if isinstance(ACTION_SPACE, spaces.Discrete):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
-
-                #print(rollout_data.observations)
-                print([(val, tens.shape) for val, tens in rollout_data.observations.items()])
-                #print(rollout_data.observations["input_encoded_pt"].shape)
-                #rollout_data.observations["prompt_or_input_attention_mask_pt"].detach()
-                #rollout_data.observations["prompt_or_input_encoded_pt"].detach()
-                #rollout_data.observations["context_encoded_pt"].detach()
-                #rollout_data.observations["context_attention_mask_pt"].detach()
-                for value in rollout_data.observations["input_encoded_pt"][0]:
-                    if 'inf' in str(value) or 'nan' in  str(value):
-                        print(value)
-                print(torch.max(rollout_data.observations["input_encoded_pt"][0]))
-                print(torch.min(rollout_data.observations["input_encoded_pt"][0]))
                 evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
                     rollout_data.observations, actions)
                 values, log_prob, entropy = evaluation_output.values, evaluation_output.log_prob, evaluation_output.entropy
@@ -631,7 +606,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
         ROLLOUTS.reset()
 
 
-    print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
 
     TOTAL_EXECUTIONS += 1
