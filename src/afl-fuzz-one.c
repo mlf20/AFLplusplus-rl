@@ -1959,11 +1959,13 @@ custom_mutator_stage:
           u8                 *new_buf = NULL;
           u32                 target_len = 0;
 
-          
+           check if splicing makes sense yet (enough entries) 
           if (likely(!afl->custom_splice_optout &&
                      afl->ready_for_splicing_count > 1)) {
 
-          
+            Pick a random other queue entry for passing to external API
+               that has the necessary length 
+
             do {
 
               tid = rand_below(afl, afl->queued_items);
@@ -1975,6 +1977,7 @@ custom_mutator_stage:
             target = afl->queue_buf[tid];
             afl->splicing_with = tid;
 
+            /* Read the additional testcase into a new buffer. 
             new_buf = queue_testcase_get(afl, target);
             target_len = target->len;
 
@@ -2003,7 +2006,9 @@ custom_mutator_stage:
 
             if (!el->afl_custom_fuzz_count) {
 
-          
+              /* If we're finding new stuff, let's run for a bit longer, limits
+                permitting. 
+
               if (afl->queued_items != havoc_queued) {
 
                 if (perf_score <= afl->havoc_max_mult * 100) {
@@ -2021,7 +2026,7 @@ custom_mutator_stage:
 
           }
 
-         
+          /* out_buf may have been changed by the call to custom_fuzz 
           memcpy(out_buf, in_buf, len);
 
         }
@@ -2042,7 +2047,7 @@ custom_mutator_stage:
   afl->stage_cycles[STAGE_CUSTOM_MUTATOR] += afl->stage_cur;
 #ifdef INTROSPECTION
   afl->queue_cur->stats_mutated += afl->stage_max;
-#endif */
+#endif*/
 
   /****************
    * RANDOM HAVOC *
@@ -2050,7 +2055,15 @@ custom_mutator_stage:
 
 havoc_stage:
 
+  if (unlikely(afl->custom_only)) {
 
+    /* Force UI update */
+    show_stats(afl);
+    /* Skip other stages */
+    ret_val = 0;
+    goto abandon_entry;
+
+  }
 
   afl->stage_cur_byte = -1;
 
@@ -2084,7 +2097,13 @@ havoc_stage:
 
   havoc_queued = afl->queued_items;
 
-  /* if (afl->custom_mutators_count) {
+  if (afl->custom_mutators_count) {
+
+    /* FIXME: ADD RESET FUNCTION */
+    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+
+      el->afl_custom_havoc_mutation_reset(el->data);
+    });
 
     LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
@@ -2105,7 +2124,7 @@ havoc_stage:
 
     });
 
-  } */
+  }
 
   /* We essentially just do several thousand runs (depending on perf_score)
      where we take the input file and make random stacked tweaks. */
@@ -2113,29 +2132,48 @@ havoc_stage:
 #define MAX_HAVOC_ENTRY 64
 #define MUTATE_ASCII_DICT 64
 
+  u32 r_max, r;
+
+  r_max = (MAX_HAVOC_ENTRY + 1) + (afl->extras_cnt ? 4 : 0) +
+          (afl->a_extras_cnt
+               ? (unlikely(afl->cmplog_binary && afl->queue_cur->is_ascii)
+                      ? MUTATE_ASCII_DICT
+                      : 4)
+               : 0);
+
+  if (unlikely(afl->expand_havoc && afl->ready_for_splicing_count > 1)) {
+
+    /* add expensive havoc cases here, they are activated after a full
+       cycle without finds happened */
+
+    r_max += 4;
+
+  }
+
+  if (unlikely(get_cur_time() - afl->last_find_time > 5000 /* 5 seconds */ &&
+               afl->ready_for_splicing_count > 1)) {
+
+    /* add expensive havoc cases here if there is no findings in the last 5s */
+
+    r_max += 4;
+
+  }
+
   for (afl->stage_cur = 0; afl->stage_cur < afl->stage_max; ++afl->stage_cur) {
 
     u32 use_stacking = 1 << (1 + rand_below(afl, afl->havoc_stack_pow2));
-    // fix use_stacking for RL purposes
-    //u32 use_stacking = 86;
 
     afl->stage_cur_val = use_stacking;
-
-    /* FIXME: ADD RESET FUNCTION */
-    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-
-      el->afl_custom_havoc_mutation_reset(el->data);
-    });
 
 #ifdef INTROSPECTION
     snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
              afl->queue_cur->fname, use_stacking);
 #endif
 
+
+
     for (i = 0; i < use_stacking; ++i) {
 
-      /*
-      becomes redundant as will will always use the agent
       if (afl->custom_mutators_count) {
 
         LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
@@ -2152,21 +2190,28 @@ havoc_stage:
 
             }
 
+            if (likely(new_len > 0 && custom_havoc_buf)) {
+
+              temp_len = new_len;
+              if (out_buf != custom_havoc_buf) {
+
+                out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
+                if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
+                memcpy(out_buf, custom_havoc_buf, temp_len);
+
+              }
+
+            }
+
           }
-          
+
         });
 
-      } */
-      u32 r;
+      }
 
-      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-        
-        r = el->afl_custom_havoc_mutation_action(el->data, out_buf, temp_len);
-      });
+      switch ((r = rand_below(afl, r_max))) {
 
-      switch (r) {
-
-        case 0: {
+        case 0 ... 3: {
 
           /* Flip a single bit somewhere. Spooky! */
 
@@ -2179,7 +2224,7 @@ havoc_stage:
 
         }
 
-        case 1: {
+        case 4 ... 7: {
 
           /* Set byte to interesting value. */
 
@@ -2193,7 +2238,7 @@ havoc_stage:
 
         }
 
-        case 2: {
+        case 8 ... 9: {
 
           /* Set word to interesting value, little endian. */
 
@@ -2210,7 +2255,7 @@ havoc_stage:
 
         }
 
-        case 3: {
+        case 10 ... 11: {
 
           /* Set word to interesting value, big endian. */
 
@@ -2227,7 +2272,7 @@ havoc_stage:
 
         }
 
-        case 4: {
+        case 12 ... 13: {
 
           /* Set dword to interesting value, little endian. */
 
@@ -2244,7 +2289,7 @@ havoc_stage:
 
         }
 
-        case 5: {
+        case 14 ... 15: {
 
           /* Set dword to interesting value, big endian. */
 
@@ -2261,7 +2306,7 @@ havoc_stage:
 
         }
 
-        case 6: {
+        case 16 ... 19: {
 
           /* Randomly subtract from byte. */
 
@@ -2274,7 +2319,7 @@ havoc_stage:
 
         }
 
-        case 7: {
+        case 20 ... 23: {
 
           /* Randomly add to byte. */
 
@@ -2287,7 +2332,7 @@ havoc_stage:
 
         }
 
-        case 8: {
+        case 24 ... 25: {
 
           /* Randomly subtract from word, little endian. */
 
@@ -2305,7 +2350,7 @@ havoc_stage:
 
         }
 
-        case 9: {
+        case 26 ... 27: {
 
           /* Randomly subtract from word, big endian. */
 
@@ -2326,7 +2371,7 @@ havoc_stage:
 
         }
 
-        case 10: {
+        case 28 ... 29: {
 
           /* Randomly add to word, little endian. */
 
@@ -2344,7 +2389,7 @@ havoc_stage:
 
         }
 
-        case 11: {
+        case 30 ... 31: {
 
           /* Randomly add to word, big endian. */
 
@@ -2365,7 +2410,7 @@ havoc_stage:
 
         }
 
-        case 12: {
+        case 32 ... 33: {
 
           /* Randomly subtract from dword, little endian. */
 
@@ -2383,7 +2428,7 @@ havoc_stage:
 
         }
 
-        case 13: {
+        case 34 ... 35: {
 
           /* Randomly subtract from dword, big endian. */
 
@@ -2404,7 +2449,7 @@ havoc_stage:
 
         }
 
-        case 14: {
+        case 36 ... 37: {
 
           /* Randomly add to dword, little endian. */
 
@@ -2422,7 +2467,7 @@ havoc_stage:
 
         }
 
-        case 15: {
+        case 38 ... 39: {
 
           /* Randomly add to dword, big endian. */
 
@@ -2443,7 +2488,7 @@ havoc_stage:
 
         }
 
-        case 16: {
+        case 40 ... 43: {
 
           /* Just set a random byte to a random value. Because,
              why not. We use XOR with 1-255 to eliminate the
@@ -2458,7 +2503,7 @@ havoc_stage:
 
         }
 
-        case 17: {
+        case 44 ... 46: {
 
           if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
 
@@ -2499,7 +2544,7 @@ havoc_stage:
 
         }
 
-        case 18: {
+        case 47: {
 
           if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
 
@@ -2542,7 +2587,7 @@ havoc_stage:
 
         }
 
-        case 19: {
+        case 48 ... 50: {
 
           /* Overwrite bytes with a randomly selected chunk bytes. */
 
@@ -2567,7 +2612,7 @@ havoc_stage:
 
         }
 
-        case 20: {
+        case 51: {
 
           /* Overwrite bytes with fixed bytes. */
 
@@ -2590,7 +2635,7 @@ havoc_stage:
 
         }
 
-        case 21: {
+        case 52: {
 
           /* Increase byte by 1. */
 
@@ -2603,7 +2648,7 @@ havoc_stage:
 
         }
 
-        case 22: {
+        case 53: {
 
           /* Decrease byte by 1. */
 
@@ -2616,7 +2661,7 @@ havoc_stage:
 
         }
 
-        case 23: {
+        case 54: {
 
           /* Flip byte. */
 
@@ -2629,7 +2674,7 @@ havoc_stage:
 
         }
 
-        case 24: {
+        case 55 ... 56: {
 
           if (temp_len < 4) { break; }
 
@@ -2681,8 +2726,8 @@ havoc_stage:
 
         }
 
-
-        case 25: {
+        // MAX_HAVOC_ENTRY = 64
+        case 57 ... MAX_HAVOC_ENTRY: {
 
           /* Delete bytes. */
 
@@ -2703,11 +2748,6 @@ havoc_stage:
 
           temp_len -= del_len;
 
-          break;
-
-        }
-        case 26: {
-          // adding in a 'do nothing' option
           break;
 
         }
@@ -2919,7 +2959,6 @@ havoc_stage:
           // end of default
 
       }
-      /* FIXME: ADD IN ZERO REWARD FOR TAKING STEP*/
 
     }
 
@@ -2953,13 +2992,6 @@ havoc_stage:
 
 
     }
-    /*u8 afl->bitmap_changed
-    u32 afl->fsrv.trace_bits
-    u32 afl->fsrv.map_size
-    u8 afl->virgin_bits
-    u8 afl->queued_with_cov
-    */
-
 
     /* out_buf might have been mangled a bit, so let's restore it to its
        original size and shape. */
@@ -2970,7 +3002,7 @@ havoc_stage:
     memcpy(out_buf, in_buf, len);
 
     /* If we're finding new stuff, let's run for a bit longer, limits
-       permitting. [COVERAGE INCREASED]*/
+       permitting. */
 
     if (afl->queued_items != havoc_queued) {
 
@@ -5379,9 +5411,7 @@ pacemaker_fuzzing:
         memcpy(out_buf, in_buf, len);
 
         /* If we're finding new stuff, let's run for a bit longer, limits
-           permitting.  [COVERAGE INCREASED]*/
-
-
+           permitting. */
 
         if (afl->queued_items != havoc_queued) {
 
