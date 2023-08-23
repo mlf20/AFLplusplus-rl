@@ -293,7 +293,7 @@ def havoc_mutation_action(buf):
         with torch.no_grad():
             #print(torch.cuda.memory_summary(abbreviated=False))
             torch.cuda.empty_cache()
-            obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+            #obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
             for key, value in obs_tensor.items():
                 obs_tensor[key] = value.unsqueeze(1)
             # get log probs (TBD: generalize this a bit)
@@ -348,8 +348,11 @@ def havoc_mutation_action(buf):
             kl_div = raw_log_probs - ref_log_probs
             kl_rewards = -1 * KLCONTROLLER.kl_coeff * kl_div
             torch.cuda.empty_cache()
-        rewards =  np.zeros((1,))
+
         actions = actions_tensor.cpu().numpy()
+        obs = obs.update(actions[0], TOKENIZER)
+        obs_tensor = obs_as_tensor(obs.to_dict(), DEVICE)
+        rewards =  np.zeros((1,))
         dones = np.zeros((1,))
         total_rewards = rewards + kl_rewards.cpu().numpy()
         infos = [{}]
