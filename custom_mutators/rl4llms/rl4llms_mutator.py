@@ -38,6 +38,7 @@ import os.path as path
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
 
+from agent.storage import RolloutStorage
 
 # Agent implementation
 AGENT = None
@@ -56,7 +57,7 @@ STATE = []
 MAX_ACTIONS         = TOKENIZER.vocab_size
 #OBSERVATION_SPACE   = gym.spaces.Box(0, 3000, (9216, ), dtype=int) # max seen in testing 8348 int so 2^13*1.125 = 9216  8348??
 ACTION_SPACE        = gym.spaces.Discrete(MAX_ACTIONS)
-MAX_STEPS           = 32 # Taken from maximum value of mutations that can be done by AFL. Though AFL takes a random number of steps (4,8,16,26,46,86) when doing so
+MAX_STEPS           = 86 # Taken from maximum value of mutations that can be done by AFL. Though AFL takes a random number of steps (4,8,16,26,46,86) when doing so
 STEP_COUNTER        = 0
 
 
@@ -72,7 +73,7 @@ EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
 GAMMA               = 0.99
-BATCH_SIZE          = 2
+BATCH_SIZE          = 32
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
 USE_PROPER_TIME_LIMITS = False
@@ -142,14 +143,13 @@ def init(seed):
         )
 
 
-    ROLLOUTS = MaskableDictRolloutBuffer(
+    ROLLOUTS = RolloutStorage(
                 MAX_STEPS,
                 OBSERVATION_SPACE,
                 ACTION_SPACE,
                 device=DEVICE,
                 gamma=GAMMA,
-                gae_lambda=GAE_LAMBDA,
-                n_envs=1,
+                gae_lambda=GAE_LAMBDA
             )
 
     TF_WRITER = SummaryWriter(log_dir=SAVE_DIR)
@@ -164,7 +164,7 @@ def deinit():
 
     TF_WRITER.close()
 
-    save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
+    save_path =  path.abspath(path.join(__file__, "../"))+ f'/{SAVE_DIR}'
     try:
         os.makedirs(save_path)
     except OSError:
@@ -672,9 +672,9 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
-    ROLLOUTS.rewards[-1] = np.array([reward])
+    ROLLOUTS.rewards[ROLLOUTS.pos] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
-    ROLLOUTS.action_masks[-1] = np.zeros((1,))
+    ROLLOUTS.action_masks[ROLLOUTS.pos] = np.zeros((1,))
     if ROLLOUTS.full:
         ROLLOUTS.compute_returns_and_advantage(last_values=torch.tensor([0.0]), dones=0.0)
 
