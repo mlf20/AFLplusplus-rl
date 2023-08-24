@@ -34,7 +34,7 @@ from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
 from rl4lms.data_pools.text_generation_pool import Sample
 from rl4llmXafl_utils import add_to_buffer, linear_schedule, get_policy_kwargs, unpack_observations, TransitionInfo
-
+import os.path as path
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
 
@@ -45,8 +45,9 @@ ROLLOUTS = None
 ROLLOUT_INFO = None
 
 # LLM Parameters
-#LLM = pipeline()
-TOKENIZER = AutoTokenizer.from_pretrained('byte_gpt2')
+#LLM = pipeline(
+file_dir = path.abspath(path.join(__file__, "../"))
+TOKENIZER = AutoTokenizer.from_pretrained(file_dir+'/byte_gpt2')
 MODEL_MAX_LENGTH = TOKENIZER.model_max_length
 KLCONTROLLER = KLController(0.1, 0.1)
 MAX_TEXT_LENGTH = 64
@@ -129,10 +130,11 @@ def init(seed):
     global TF_WRITER
     lr_schedule = linear_schedule(LEARNING_RATE)
     # needs to be rl4llms agent wrapped
+    file_dir = path.abspath(path.join(__file__, "../"))
     AGENT =  CausalLMActorCriticPolicy(
             observation_space=OBSERVATION_SPACE,
             action_space=ACTION_SPACE,
-            model_name='byte_gpt2',
+            model_name= file_dir+ '/byte_gpt2',
             lr_schedule=lr_schedule,
             generation_kwargs={'do_sample': True,
                                'min_length': 32,
