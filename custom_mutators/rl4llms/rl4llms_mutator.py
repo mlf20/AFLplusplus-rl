@@ -660,7 +660,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     ROLLOUTS.action_masks[ROLLOUTS.pos - 1] = np.zeros((1,))
     if ROLLOUTS.full:
         next_values = (
-                            transitions[ROLLOUTS.pos].value
+                            ROLLOUTS[ROLLOUTS.pos].value
                             if (ROLLOUTS.pos) < MAX_STEPS
                             else torch.tensor([0.0])
                         )
