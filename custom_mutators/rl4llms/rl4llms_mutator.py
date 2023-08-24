@@ -373,7 +373,7 @@ def havoc_mutation(buf, max_size):
     #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
     #string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
 
-    byte_arr = bytearray(gen_output.gen_texts.encode('utf-8'))
+    byte_arr = bytearray(gen_output.gen_texts[0].encode('utf-8'))
 
     byte_arr=byte_arr[:max_size]
     return byte_arr
@@ -655,11 +655,16 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
-    ROLLOUTS.rewards[ROLLOUTS.pos] = np.array([reward])
+    ROLLOUTS.rewards[ROLLOUTS.pos - 1] = np.array([reward])
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
-    ROLLOUTS.action_masks[ROLLOUTS.pos] = np.zeros((1,))
+    ROLLOUTS.action_masks[ROLLOUTS.pos - 1] = np.zeros((1,))
     if ROLLOUTS.full:
-        ROLLOUTS.compute_returns_and_advantage(last_values=torch.tensor([0.0]), dones=0.0)
+        next_values = (
+                            transitions[ROLLOUTS.pos].value
+                            if (ROLLOUTS.pos) < MAX_STEPS
+                            else torch.tensor([0.0])
+                        )
+        ROLLOUTS.compute_returns_and_advantage(last_values=next_values, dones=0.0)
 
         aggregated_rollout_info = {}
         for key, values in ROLLOUT_INFO.items():
@@ -787,7 +792,7 @@ if __name__ == '__main__':
     for i in range(10):
         testbyte = bytearray([1, 2, 3, 4])
 
-        action = havoc_mutation_action(testbyte)
+        action = havoc_mutation(testbyte, 200)
         print(f"action: {action}")
         print(f"step counter: {STEP_COUNTER}")
         torch.cuda.empty_cache()
