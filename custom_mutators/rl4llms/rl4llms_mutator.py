@@ -29,7 +29,7 @@ from gym.spaces.dict import Dict as DictSpace
 from gym import spaces
 from transformers import AutoTokenizer
 from rl4lms.envs.text_generation.policy.causal_policy import CausalLMActorCriticPolicy
-from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
+#from rl4lms.algorithms.common.maskable.buffers import MaskableDictRolloutBuffer
 from rl4lms.envs.text_generation.kl_controllers import KLController
 from rl4lms.envs.text_generation.observation import Observation
 from rl4lms.data_pools.text_generation_pool import Sample
@@ -236,19 +236,14 @@ def havoc_mutation(buf, max_size):
         "input_encoded_pt": obs.input_encoded_pt.numpy(),
         "input_attention_mask_pt": obs.input_attention_mask_pt.numpy()
     }, DEVICE)
-    #generation_inputs = AGENT.get_inputs_for_generation(obs_tensor)
-    #print(obs_tensor)
     gen_output = AGENT.generate(
         input_ids=obs_tensor["input_encoded_pt"],
         attention_mask=obs_tensor["input_attention_mask_pt"],
-        #max_prompt_length=512,
-        #texts=["\x13\x13\x13\x13\xb3\x00\x13\x13"],
         tokenizer=TOKENIZER,
-        #gen_kwargs={}
     )
     episode_starts = np.ones((1,), dtype=bool)
-    episode_wise_transitions = [[]]
-    ep_terminated = np.zeros((1,), dtype=bool)
+    episode_wise_transitions = []
+    #ep_terminated = np.zeros((1,), dtype=bool)
     value_past_state = None
     ref_past_state = None
     policy_past_state = None
@@ -262,8 +257,8 @@ def havoc_mutation(buf, max_size):
         gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
     ):
         # if all episodes are done, just break and do not continue
-        if np.all(ep_terminated):
-            break
+        #if np.all(ep_terminated):
+        #    break
         # evaluate actions with actions from rollout
         with torch.no_grad():
             #print(torch.cuda.memory_summary(abbreviated=False))
@@ -275,7 +270,7 @@ def havoc_mutation(buf, max_size):
             policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
             )
-            policy_outputs: PolicyOutput = AGENT.forward_policy(
+            policy_outputs = AGENT.forward_policy(
                 **policy_kwargs
             )
             raw_log_probs, log_probs, policy_past_state = (
@@ -295,7 +290,7 @@ def havoc_mutation(buf, max_size):
             ), "Infinite values in log probs"
 
             # get values
-            value_outputs: ValueOutput = AGENT.forward_value(
+            value_outputs = AGENT.forward_value(
                 obs_tensor, value_past_state
             )
             values, value_past_state = (
@@ -304,7 +299,7 @@ def havoc_mutation(buf, max_size):
             )
 
             # get reference log probs
-            ref_policy_outputs: RefPolicyOutput = (
+            ref_policy_outputs = (
                 AGENT.get_log_probs_ref_model(
                     obs_tensor, actions_tensor, ref_past_state
                 )
@@ -331,33 +326,27 @@ def havoc_mutation(buf, max_size):
         infos = [{}]
 
         # unpack individual observations
-        unpacked_obs = unpack_observations(obs_tensor, 1)
+        unpacked_obs = unpack_observations(obs_tensor)
         # store episode wise transitions separately
-        for env_ix in range(1):
-            # only if not terminated already
-            if not ep_terminated[env_ix]:
-                transtion = TransitionInfo(
-                    observation=unpacked_obs[env_ix],
-                    action=actions[env_ix],
-                    task_reward=rewards[env_ix],
-                    total_reward=total_rewards[env_ix],
-                    kl_div=kl_div.cpu().numpy()[env_ix],
-                    episode_start=episode_starts[env_ix],
-                    value=values[env_ix].cpu(),
-                    log_prob=log_probs[env_ix].cpu(),
-                    done=dones[env_ix],
-                    ref_log_prob=ref_log_probs[env_ix].cpu(),
-                    kl_reward=kl_rewards.cpu().numpy()[env_ix],
-                    action_mask=action_mask[env_ix].cpu().numpy()
-                    if action_mask is not None else None,
-                    info=infos[env_ix],
-                )
+        transtion = TransitionInfo(
+            observation=unpacked_obs,
+            action=actions,
+            task_reward=rewards,
+            total_reward=total_rewards,
+            kl_div=kl_div.cpu().numpy(),
+            episode_start=episode_starts,
+            value=values.cpu(),
+            log_prob=log_probs.cpu(),
+            done=dones,
+            ref_log_prob=ref_log_probs.cpu(),
+            kl_reward=kl_rewards.cpu().numpy(),
+            action_mask=action_mask.cpu().numpy()
+            if action_mask is not None else None,
+            info=infos,
+        )
 
-                episode_wise_transitions[env_ix].append(transtion)
+        episode_wise_transitions.append(transtion)
 
-            # mark this episode to terminated if done occurs once
-            if dones[env_ix]:
-                ep_terminated[env_ix] = True
         episode_starts = np.zeros((1,), dtype=bool)
         obs = obs.update(actions[0], TOKENIZER)
         obs_tensor = obs_as_tensor({
@@ -382,8 +371,9 @@ def havoc_mutation(buf, max_size):
     #GLOBAL_ARRAY.append(action)
     #print(GLOBAL_ARRAY)
     #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
-    string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
-    byte_arr = bytearray(string_array.encode('utf-8'))
+    #string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
+
+    byte_arr = bytearray(gen_output.gen_texts.encode('utf-8'))
 
     byte_arr=byte_arr[:max_size]
     return byte_arr
@@ -419,7 +409,7 @@ def havoc_mutation_action(buf):
 
 
     # Convert state to numpy fixed size
-    int_list = [int(str(hex(x)), 16) for x in list(buf)]
+    #int_list = [int(str(hex(x)), 16) for x in list(buf)]
     #str_buff = "".join([str(hex(x)) for x in list(buf)])
     str_buff = str(buf)[12:-2]
     str_buff = Sample(1, str_buff, ['byte_string'])
@@ -440,14 +430,11 @@ def havoc_mutation_action(buf):
     gen_output = AGENT.generate(
         input_ids=obs_tensor["input_encoded_pt"],
         attention_mask=obs_tensor["input_attention_mask_pt"],
-        #max_prompt_length=512,
-        #texts=["\x13\x13\x13\x13\xb3\x00\x13\x13"],
         tokenizer=TOKENIZER,
-        #gen_kwargs={}
     )
     episode_starts = np.ones((1,), dtype=bool)
-    episode_wise_transitions = [[]]
-    ep_terminated = np.zeros((1,), dtype=bool)
+    episode_wise_transitions = []
+    #ep_terminated = np.zeros((1,), dtype=bool)
     value_past_state = None
     ref_past_state = None
     policy_past_state = None
@@ -461,8 +448,8 @@ def havoc_mutation_action(buf):
         gen_output.step_wise_actions, gen_output.step_wise_logprobs, masks
     ):
         # if all episodes are done, just break and do not continue
-        if np.all(ep_terminated):
-            break
+        #if np.all(ep_terminated):
+        #    break
         # evaluate actions with actions from rollout
         with torch.no_grad():
             #print(torch.cuda.memory_summary(abbreviated=False))
@@ -474,7 +461,7 @@ def havoc_mutation_action(buf):
             policy_kwargs = get_policy_kwargs(
                 obs_tensor, actions_tensor, policy_past_state, action_mask
             )
-            policy_outputs: PolicyOutput = AGENT.forward_policy(
+            policy_outputs = AGENT.forward_policy(
                 **policy_kwargs
             )
             raw_log_probs, log_probs, policy_past_state = (
@@ -494,7 +481,7 @@ def havoc_mutation_action(buf):
             ), "Infinite values in log probs"
 
             # get values
-            value_outputs: ValueOutput = AGENT.forward_value(
+            value_outputs = AGENT.forward_value(
                 obs_tensor, value_past_state
             )
             values, value_past_state = (
@@ -503,7 +490,7 @@ def havoc_mutation_action(buf):
             )
 
             # get reference log probs
-            ref_policy_outputs: RefPolicyOutput = (
+            ref_policy_outputs = (
                 AGENT.get_log_probs_ref_model(
                     obs_tensor, actions_tensor, ref_past_state
                 )
@@ -530,33 +517,28 @@ def havoc_mutation_action(buf):
         infos = [{}]
 
         # unpack individual observations
-        unpacked_obs = unpack_observations(obs_tensor, 1)
+        unpacked_obs = unpack_observations(obs_tensor)
         # store episode wise transitions separately
-        for env_ix in range(1):
-            # only if not terminated already
-            if not ep_terminated[env_ix]:
-                transtion = TransitionInfo(
-                    observation=unpacked_obs[env_ix],
-                    action=actions[env_ix],
-                    task_reward=rewards[env_ix],
-                    total_reward=total_rewards[env_ix],
-                    kl_div=kl_div.cpu().numpy()[env_ix],
-                    episode_start=episode_starts[env_ix],
-                    value=values[env_ix].cpu(),
-                    log_prob=log_probs[env_ix].cpu(),
-                    done=dones[env_ix],
-                    ref_log_prob=ref_log_probs[env_ix].cpu(),
-                    kl_reward=kl_rewards.cpu().numpy()[env_ix],
-                    action_mask=action_mask[env_ix].cpu().numpy()
+        transtion = TransitionInfo(
+                    observation=unpacked_obs,
+                    action=actions,
+                    task_reward=rewards,
+                    total_reward=total_rewards,
+                    kl_div=kl_div.cpu().numpy(),
+                    episode_start=episode_starts,
+                    value=values.cpu(),
+                    log_prob=log_probs.cpu(),
+                    done=dones,
+                    ref_log_prob=ref_log_probs.cpu(),
+                    kl_reward=kl_rewards.cpu().numpy(),
+                    action_mask=action_mask.cpu().numpy()
                     if action_mask is not None else None,
-                    info=infos[env_ix],
+                    info=infos,
                 )
 
-                episode_wise_transitions[env_ix].append(transtion)
+        episode_wise_transitions.append(transtion)
 
-            # mark this episode to terminated if done occurs once
-            if dones[env_ix]:
-                ep_terminated[env_ix] = True
+
         episode_starts = np.zeros((1,), dtype=bool)
         obs = obs.update(actions[0], TOKENIZER)
         obs_tensor = obs_as_tensor({
@@ -581,8 +563,9 @@ def havoc_mutation_action(buf):
     #GLOBAL_ARRAY.append(action)
     #print(GLOBAL_ARRAY)
     #print(TOKENIZER.decode(gen_output.step_wise_actions[0]))
-    string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
-    byte_arr = bytearray(string_array.encode('utf-8'))
+    #string_array = TOKENIZER.decode(obs_tensor['input_encoded_pt'][0], skip_special_tokens=True)
+    byte_arr = bytearray(gen_output.gen_texts.encode('utf-8'))
+    #byte_arr = bytearray(string_array.encode('utf-8'))
     return byte_arr
 
 def havoc_mutation_reset():
