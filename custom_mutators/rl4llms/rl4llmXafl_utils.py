@@ -19,9 +19,9 @@ def add_to_buffer(rollout_buffer, episode_wise_transitions, rollout_info
         total_reward += transition.task_reward
         total_kl_reward += transition.kl_reward
         rollout_info["rollout_info/kl_div_mean"].append(transition.kl_div)
-        rollout_info["rollout_info/log_prob"].append(transition.log_prob)
+        rollout_info["rollout_info/log_prob"].append(transition.log_prob.numpy())
         rollout_info["rollout_info/ref_log_prob"].append(
-            transition.ref_log_prob
+            transition.ref_log_prob.numpy()
         )
         rollout_info["rollout_info/values"].append(transition.value.numpy())
 
