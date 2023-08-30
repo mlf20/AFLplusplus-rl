@@ -2159,106 +2159,96 @@ havoc_stage:
 
   }
 
-  for (afl->stage_cur = 0; afl->stage_cur < afl->stage_max; ++afl->stage_cur) {
-
-    u32 use_stacking = 1 << (1 + rand_below(afl, afl->havoc_stack_pow2));
-
-    afl->stage_cur_val = use_stacking;
 
 #ifdef INTROSPECTION
-    snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
+  snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
              afl->queue_cur->fname, use_stacking);
 #endif
 
 
 
+  LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+  
+    u8    *custom_havoc_buf = NULL;
+    size_t new_len = el->afl_custom_havoc_mutation(
+        el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
+    if (unlikely(!custom_havoc_buf)) {
+
+      FATAL("Error in custom_havoc (return %zu)", new_len);
+
+    }
+
+    if (likely(new_len > 0 && custom_havoc_buf)) {
+
+      temp_len = new_len;
+      if (out_buf != custom_havoc_buf) {
+
+        out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
+        if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
+        memcpy(out_buf, custom_havoc_buf, temp_len);
+
+      }
+
+    }  
+
+  });
+
+  if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
+    u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+    
+    // size_t virgin_bits_size = sizeof(afl->virgin_bits);
+    u32 crash_holder = afl->total_crashes;
+    
+    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+     */
+
     LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-      if (el->stacked_custom &&
-          rand_below(afl, 100) < el->stacked_custom_prob) {
+      el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
+    });
+    goto abandon_entry; 
+  }else {
+    u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+    
+    // size_t virgin_bits_size = sizeof(afl->virgin_bits);
+    u32 crash_holder = afl->total_crashes;
 
-        u8    *custom_havoc_buf = NULL;
-        size_t new_len = el->afl_custom_havoc_mutation(
-            el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
-        if (unlikely(!custom_havoc_buf)) {
+    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+     */
 
-          FATAL("Error in custom_havoc (return %zu)", new_len);
+    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-        }
-
-        if (likely(new_len > 0 && custom_havoc_buf)) {
-
-          temp_len = new_len;
-          if (out_buf != custom_havoc_buf) {
-
-            out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
-            if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
-            memcpy(out_buf, custom_havoc_buf, temp_len);
-
-          }
-
-        }
-
-      }
-
+      el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
     });
 
-    if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
-      u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-      
-      // size_t virgin_bits_size = sizeof(afl->virgin_bits);
-      u32 crash_holder = afl->total_crashes;
-      
-      /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
-       */
-
-      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-
-        el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
-      });
-      goto abandon_entry; 
-    }else {
-      u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-      
-      // size_t virgin_bits_size = sizeof(afl->virgin_bits);
-      u32 crash_holder = afl->total_crashes;
-
-      /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
-       */
-
-      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-
-        el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
-      });
-
-
-    }
-
-    /* out_buf might have been mangled a bit, so let's restore it to its
-       original size and shape. */
-
-    out_buf = afl_realloc(AFL_BUF_PARAM(out), len);
-    if (unlikely(!out_buf)) { PFATAL("alloc"); }
-    temp_len = len;
-    memcpy(out_buf, in_buf, len);
-
-    /* If we're finding new stuff, let's run for a bit longer, limits
-       permitting. */
-
-    if (afl->queued_items != havoc_queued) {
-
-      if (perf_score <= afl->havoc_max_mult * 100) {
-
-        afl->stage_max *= 2;
-        perf_score *= 2;
-
-      }
-
-      havoc_queued = afl->queued_items;
-
-    }
 
   }
+
+  /* out_buf might have been mangled a bit, so let's restore it to its
+     original size and shape. */
+
+  out_buf = afl_realloc(AFL_BUF_PARAM(out), len);
+  if (unlikely(!out_buf)) { PFATAL("alloc"); }
+  temp_len = len;
+  memcpy(out_buf, in_buf, len);
+
+  /* If we're finding new stuff, let's run for a bit longer, limits
+     permitting. */
+
+  if (afl->queued_items != havoc_queued) {
+
+    if (perf_score <= afl->havoc_max_mult * 100) {
+
+      afl->stage_max *= 2;
+      perf_score *= 2;
+
+    }
+
+    havoc_queued = afl->queued_items;
+
+  }
+
+  
 
   new_hit_cnt = afl->queued_items + afl->saved_crashes;
 
