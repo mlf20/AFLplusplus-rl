@@ -1989,10 +1989,29 @@ custom_mutator_stage:
              ++afl->stage_cur) {
 
 
-
+          u8    *custom_havoc_buf = NULL;
           size_t new_len = el->afl_custom_havoc_mutation(
               el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
     
+
+          if (unlikely(!custom_havoc_buf)) {
+
+            FATAL("Error in custom_havoc (return %zu)", new_len);
+
+          }
+
+          if (likely(new_len > 0 && custom_havoc_buf)) {
+
+            temp_len = new_len;
+            if (out_buf != custom_havoc_buf) {
+
+              out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
+              if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
+              memcpy(out_buf, custom_havoc_buf, temp_len);
+
+            }
+
+          }
 
 
           if (unlikely(!mutated_buf)) {
