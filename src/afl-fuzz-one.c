@@ -1908,7 +1908,7 @@ custom_mutator_stage:
    * CUSTOM MUTATORS *
    *******************/
 
-  /*if (likely(!afl->custom_mutators_count)) { goto havoc_stage; }
+  if (likely(!afl->custom_mutators_count)) { goto havoc_stage; }
 
   afl->stage_name = "custom mutator";
   afl->stage_short = "custom";
@@ -1931,6 +1931,7 @@ custom_mutator_stage:
   LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
     if (el->afl_custom_fuzz) {
+      el->afl_custom_havoc_mutation_reset(el->data);
 
       afl->current_custom_fuzz = el;
       afl->stage_name = el->name_short;
@@ -1944,7 +1945,9 @@ custom_mutator_stage:
         afl->stage_max = saved_max;
 
       }
-
+      size_t mutated_size =
+              el->afl_custom_fuzz(el->data, out_buf, len, &mutated_buf, new_buf,
+                                  target_len, max_seed_size);
       has_custom_fuzz = true;
 
       afl->stage_short = el->name_short;
@@ -1959,12 +1962,12 @@ custom_mutator_stage:
           u8                 *new_buf = NULL;
           u32                 target_len = 0;
 
-           check if splicing makes sense yet (enough entries) 
+          /* check if splicing makes sense yet (enough entries) */
           if (likely(!afl->custom_splice_optout &&
                      afl->ready_for_splicing_count > 1)) {
 
-            Pick a random other queue entry for passing to external API
-               that has the necessary length 
+            /* Pick a random other queue entry for passing to external API
+               that has the necessary length */
 
             do {
 
@@ -1977,7 +1980,7 @@ custom_mutator_stage:
             target = afl->queue_buf[tid];
             afl->splicing_with = tid;
 
-            /* Read the additional testcase into a new buffer. 
+            /* Read the additional testcase into a new buffer. */
             new_buf = queue_testcase_get(afl, target);
             target_len = target->len;
 
@@ -1985,9 +1988,10 @@ custom_mutator_stage:
 
           u8 *mutated_buf = NULL;
 
-          size_t mutated_size =
-              el->afl_custom_fuzz(el->data, out_buf, len, &mutated_buf, new_buf,
-                                  target_len, max_seed_size);
+          size_t new_len = el->afl_custom_havoc_mutation(
+              el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
+    
+
 
           if (unlikely(!mutated_buf)) {
 
@@ -1998,16 +2002,41 @@ custom_mutator_stage:
 
           if (mutated_size > 0) {
 
-            if (common_fuzz_stuff(afl, mutated_buf, (u32)mutated_size)) {
+            if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
+                u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+                
+                // size_t virgin_bits_size = sizeof(afl->virgin_bits);
+                u32 crash_holder = afl->total_crashes;
+                
+                /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+                 */
 
-              goto abandon_entry;
+                LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-            }
+                  el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
+                });
+                goto abandon_entry; 
+              }else {
+                u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
+                
+                // size_t virgin_bits_size = sizeof(afl->virgin_bits);
+                u32 crash_holder = afl->total_crashes;
+
+                /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
+                 */
+
+                LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+
+                  el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
+                });
+
+
+              }
 
             if (!el->afl_custom_fuzz_count) {
 
               /* If we're finding new stuff, let's run for a bit longer, limits
-                permitting. 
+                permitting. */
 
               if (afl->queued_items != havoc_queued) {
 
@@ -2026,7 +2055,7 @@ custom_mutator_stage:
 
           }
 
-          /* out_buf may have been changed by the call to custom_fuzz 
+          /* out_buf may have been changed by the call to custom_fuzz */
           memcpy(out_buf, in_buf, len);
 
         }
@@ -2047,7 +2076,7 @@ custom_mutator_stage:
   afl->stage_cycles[STAGE_CUSTOM_MUTATOR] += afl->stage_cur;
 #ifdef INTROSPECTION
   afl->queue_cur->stats_mutated += afl->stage_max;
-#endif*/
+#endif
 
   /****************
    * RANDOM HAVOC *
@@ -2098,12 +2127,6 @@ havoc_stage:
   havoc_queued = afl->queued_items;
 
   if (afl->custom_mutators_count) {
-
-    /* FIXME: ADD RESET FUNCTION */
-    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-
-      el->afl_custom_havoc_mutation_reset(el->data);
-    });
 
     LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
@@ -2159,96 +2182,834 @@ havoc_stage:
 
   }
 
+  for (afl->stage_cur = 0; afl->stage_cur < afl->stage_max; ++afl->stage_cur) {
+
+    u32 use_stacking = 1 << (1 + rand_below(afl, afl->havoc_stack_pow2));
+
+    afl->stage_cur_val = use_stacking;
 
 #ifdef INTROSPECTION
-  snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
+    snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
              afl->queue_cur->fname, use_stacking);
 #endif
 
+    for (i = 0; i < use_stacking; ++i) {
 
+      if (afl->custom_mutators_count) {
 
-  LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-  
-    u8    *custom_havoc_buf = NULL;
-    size_t new_len = el->afl_custom_havoc_mutation(
-        el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
-    if (unlikely(!custom_havoc_buf)) {
+        LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
 
-      FATAL("Error in custom_havoc (return %zu)", new_len);
+          if (el->stacked_custom &&
+              rand_below(afl, 100) < el->stacked_custom_prob) {
 
-    }
+            u8    *custom_havoc_buf = NULL;
+            size_t new_len = el->afl_custom_havoc_mutation(
+                el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
+            if (unlikely(!custom_havoc_buf)) {
 
-    if (likely(new_len > 0 && custom_havoc_buf)) {
+              FATAL("Error in custom_havoc (return %zu)", new_len);
 
-      temp_len = new_len;
-      if (out_buf != custom_havoc_buf) {
+            }
 
-        out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
-        if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
-        memcpy(out_buf, custom_havoc_buf, temp_len);
+            if (likely(new_len > 0 && custom_havoc_buf)) {
+
+              temp_len = new_len;
+              if (out_buf != custom_havoc_buf) {
+
+                out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
+                if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
+                memcpy(out_buf, custom_havoc_buf, temp_len);
+
+              }
+
+            }
+
+          }
+
+        });
 
       }
 
-    }  
+      switch ((r = rand_below(afl, r_max))) {
 
-  });
+        case 0 ... 3: {
 
-  if (common_fuzz_stuff(afl, out_buf, temp_len)) { 
-    u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-    
-    // size_t virgin_bits_size = sizeof(afl->virgin_bits);
-    u32 crash_holder = afl->total_crashes;
-    
-    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
-     */
+          /* Flip a single bit somewhere. Spooky! */
 
-    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " FLIP_BIT1");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          FLIP_BIT(out_buf, rand_below(afl, temp_len << 3));
+          break;
 
-      el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
-    });
-    goto abandon_entry; 
-  }else {
-    u32 t_bits = (afl->fsrv.map_size << 3) - count_bits(afl, afl->virgin_bits);
-    
-    // size_t virgin_bits_size = sizeof(afl->virgin_bits);
-    u32 crash_holder = afl->total_crashes;
+        }
 
-    /* FIXME: ADD IN REWARD GATHERING METRIC TO PYTHON 
-     */
+        case 4 ... 7: {
 
-    LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+          /* Set byte to interesting value. */
 
-      el->afl_custom_havoc_mutation_reward(el->data, crash_holder, t_bits);
-    });
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING8");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)] =
+              interesting_8[rand_below(afl, sizeof(interesting_8))];
+          break;
 
+        }
 
-  }
+        case 8 ... 9: {
 
-  /* out_buf might have been mangled a bit, so let's restore it to its
-     original size and shape. */
+          /* Set word to interesting value, little endian. */
 
-  out_buf = afl_realloc(AFL_BUF_PARAM(out), len);
-  if (unlikely(!out_buf)) { PFATAL("alloc"); }
-  temp_len = len;
-  memcpy(out_buf, in_buf, len);
+          if (temp_len < 2) { break; }
 
-  /* If we're finding new stuff, let's run for a bit longer, limits
-     permitting. */
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING16");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u16 *)(out_buf + rand_below(afl, temp_len - 1)) =
+              interesting_16[rand_below(afl, sizeof(interesting_16) >> 1)];
 
-  if (afl->queued_items != havoc_queued) {
+          break;
 
-    if (perf_score <= afl->havoc_max_mult * 100) {
+        }
 
-      afl->stage_max *= 2;
-      perf_score *= 2;
+        case 10 ... 11: {
+
+          /* Set word to interesting value, big endian. */
+
+          if (temp_len < 2) { break; }
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING16BE");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u16 *)(out_buf + rand_below(afl, temp_len - 1)) = SWAP16(
+              interesting_16[rand_below(afl, sizeof(interesting_16) >> 1)]);
+
+          break;
+
+        }
+
+        case 12 ... 13: {
+
+          /* Set dword to interesting value, little endian. */
+
+          if (temp_len < 4) { break; }
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING32");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u32 *)(out_buf + rand_below(afl, temp_len - 3)) =
+              interesting_32[rand_below(afl, sizeof(interesting_32) >> 2)];
+
+          break;
+
+        }
+
+        case 14 ... 15: {
+
+          /* Set dword to interesting value, big endian. */
+
+          if (temp_len < 4) { break; }
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING32BE");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u32 *)(out_buf + rand_below(afl, temp_len - 3)) = SWAP32(
+              interesting_32[rand_below(afl, sizeof(interesting_32) >> 2)]);
+
+          break;
+
+        }
+
+        case 16 ... 19: {
+
+          /* Randomly subtract from byte. */
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH8_");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)] -= 1 + rand_below(afl, ARITH_MAX);
+          break;
+
+        }
+
+        case 20 ... 23: {
+
+          /* Randomly add to byte. */
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH8+");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)] += 1 + rand_below(afl, ARITH_MAX);
+          break;
+
+        }
+
+        case 24 ... 25: {
+
+          /* Randomly subtract from word, little endian. */
+
+          if (temp_len < 2) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 1);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16_-%u", pos);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u16 *)(out_buf + pos) -= 1 + rand_below(afl, ARITH_MAX);
+
+          break;
+
+        }
+
+        case 26 ... 27: {
+
+          /* Randomly subtract from word, big endian. */
+
+          if (temp_len < 2) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 1);
+          u16 num = 1 + rand_below(afl, ARITH_MAX);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16_BE-%u_%u", pos,
+                   num);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u16 *)(out_buf + pos) =
+              SWAP16(SWAP16(*(u16 *)(out_buf + pos)) - num);
+
+          break;
+
+        }
+
+        case 28 ... 29: {
+
+          /* Randomly add to word, little endian. */
+
+          if (temp_len < 2) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 1);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16+-%u", pos);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u16 *)(out_buf + pos) += 1 + rand_below(afl, ARITH_MAX);
+
+          break;
+
+        }
+
+        case 30 ... 31: {
+
+          /* Randomly add to word, big endian. */
+
+          if (temp_len < 2) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 1);
+          u16 num = 1 + rand_below(afl, ARITH_MAX);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16+BE-%u_%u", pos,
+                   num);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u16 *)(out_buf + pos) =
+              SWAP16(SWAP16(*(u16 *)(out_buf + pos)) + num);
+
+          break;
+
+        }
+
+        case 32 ... 33: {
+
+          /* Randomly subtract from dword, little endian. */
+
+          if (temp_len < 4) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 3);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH32_-%u", pos);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u32 *)(out_buf + pos) -= 1 + rand_below(afl, ARITH_MAX);
+
+          break;
+
+        }
+
+        case 34 ... 35: {
+
+          /* Randomly subtract from dword, big endian. */
+
+          if (temp_len < 4) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 3);
+          u32 num = 1 + rand_below(afl, ARITH_MAX);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH32_BE-%u-%u", pos,
+                   num);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u32 *)(out_buf + pos) =
+              SWAP32(SWAP32(*(u32 *)(out_buf + pos)) - num);
+
+          break;
+
+        }
+
+        case 36 ... 37: {
+
+          /* Randomly add to dword, little endian. */
+
+          if (temp_len < 4) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 3);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH32+-%u", pos);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u32 *)(out_buf + pos) += 1 + rand_below(afl, ARITH_MAX);
+
+          break;
+
+        }
+
+        case 38 ... 39: {
+
+          /* Randomly add to dword, big endian. */
+
+          if (temp_len < 4) { break; }
+
+          u32 pos = rand_below(afl, temp_len - 3);
+          u32 num = 1 + rand_below(afl, ARITH_MAX);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH32+BE-%u-%u", pos,
+                   num);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          *(u32 *)(out_buf + pos) =
+              SWAP32(SWAP32(*(u32 *)(out_buf + pos)) + num);
+
+          break;
+
+        }
+
+        case 40 ... 43: {
+
+          /* Just set a random byte to a random value. Because,
+             why not. We use XOR with 1-255 to eliminate the
+             possibility of a no-op. */
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " RAND8");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)] ^= 1 + rand_below(afl, 255);
+          break;
+
+        }
+
+        case 44 ... 46: {
+
+          if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
+
+            /* Clone bytes. */
+
+            u32 clone_len = choose_block_len(afl, temp_len);
+            u32 clone_from = rand_below(afl, temp_len - clone_len + 1);
+            u32 clone_to = rand_below(afl, temp_len);
+
+#ifdef INTROSPECTION
+            snprintf(afl->m_tmp, sizeof(afl->m_tmp), " CLONE-%s-%u-%u-%u",
+                     "clone", clone_from, clone_to, clone_len);
+            strcat(afl->mutation, afl->m_tmp);
+#endif
+            u8 *new_buf =
+                afl_realloc(AFL_BUF_PARAM(out_scratch), temp_len + clone_len);
+            if (unlikely(!new_buf)) { PFATAL("alloc"); }
+
+            /* Head */
+
+            memcpy(new_buf, out_buf, clone_to);
+
+            /* Inserted part */
+
+            memcpy(new_buf + clone_to, out_buf + clone_from, clone_len);
+
+            /* Tail */
+            memcpy(new_buf + clone_to + clone_len, out_buf + clone_to,
+                   temp_len - clone_to);
+
+            out_buf = new_buf;
+            afl_swap_bufs(AFL_BUF_PARAM(out), AFL_BUF_PARAM(out_scratch));
+            temp_len += clone_len;
+
+          }
+
+          break;
+
+        }
+
+        case 47: {
+
+          if (temp_len + HAVOC_BLK_XL < MAX_FILE) {
+
+            /* Insert a block of constant bytes (25%). */
+
+            u32 clone_len = choose_block_len(afl, HAVOC_BLK_XL);
+            u32 clone_to = rand_below(afl, temp_len);
+
+#ifdef INTROSPECTION
+            snprintf(afl->m_tmp, sizeof(afl->m_tmp), " CLONE-%s-%u-%u",
+                     "insert", clone_to, clone_len);
+            strcat(afl->mutation, afl->m_tmp);
+#endif
+            u8 *new_buf =
+                afl_realloc(AFL_BUF_PARAM(out_scratch), temp_len + clone_len);
+            if (unlikely(!new_buf)) { PFATAL("alloc"); }
+
+            /* Head */
+
+            memcpy(new_buf, out_buf, clone_to);
+
+            /* Inserted part */
+
+            memset(new_buf + clone_to,
+                   rand_below(afl, 2) ? rand_below(afl, 256)
+                                      : out_buf[rand_below(afl, temp_len)],
+                   clone_len);
+
+            /* Tail */
+            memcpy(new_buf + clone_to + clone_len, out_buf + clone_to,
+                   temp_len - clone_to);
+
+            out_buf = new_buf;
+            afl_swap_bufs(AFL_BUF_PARAM(out), AFL_BUF_PARAM(out_scratch));
+            temp_len += clone_len;
+
+          }
+
+          break;
+
+        }
+
+        case 48 ... 50: {
+
+          /* Overwrite bytes with a randomly selected chunk bytes. */
+
+          if (temp_len < 2) { break; }
+
+          u32 copy_len = choose_block_len(afl, temp_len - 1);
+          u32 copy_from = rand_below(afl, temp_len - copy_len + 1);
+          u32 copy_to = rand_below(afl, temp_len - copy_len + 1);
+
+          if (likely(copy_from != copy_to)) {
+
+#ifdef INTROSPECTION
+            snprintf(afl->m_tmp, sizeof(afl->m_tmp), " OVERWRITE_COPY-%u-%u-%u",
+                     copy_from, copy_to, copy_len);
+            strcat(afl->mutation, afl->m_tmp);
+#endif
+            memmove(out_buf + copy_to, out_buf + copy_from, copy_len);
+
+          }
+
+          break;
+
+        }
+
+        case 51: {
+
+          /* Overwrite bytes with fixed bytes. */
+
+          if (temp_len < 2) { break; }
+
+          u32 copy_len = choose_block_len(afl, temp_len - 1);
+          u32 copy_to = rand_below(afl, temp_len - copy_len + 1);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " OVERWRITE_FIXED-%u-%u",
+                   copy_to, copy_len);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          memset(out_buf + copy_to,
+                 rand_below(afl, 2) ? rand_below(afl, 256)
+                                    : out_buf[rand_below(afl, temp_len)],
+                 copy_len);
+
+          break;
+
+        }
+
+        case 52: {
+
+          /* Increase byte by 1. */
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ADDBYTE_");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)]++;
+          break;
+
+        }
+
+        case 53: {
+
+          /* Decrease byte by 1. */
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " SUBBYTE_");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)]--;
+          break;
+
+        }
+
+        case 54: {
+
+          /* Flip byte. */
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " FLIP8_");
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          out_buf[rand_below(afl, temp_len)] ^= 0xff;
+          break;
+
+        }
+
+        case 55 ... 56: {
+
+          if (temp_len < 4) { break; }
+
+          /* Switch bytes. */
+
+          u32 to_end, switch_to, switch_len, switch_from;
+          switch_from = rand_below(afl, temp_len);
+          do {
+
+            switch_to = rand_below(afl, temp_len);
+
+          } while (switch_from == switch_to);
+
+          if (switch_from < switch_to) {
+
+            switch_len = switch_to - switch_from;
+            to_end = temp_len - switch_to;
+
+          } else {
+
+            switch_len = switch_from - switch_to;
+            to_end = temp_len - switch_from;
+
+          }
+
+          switch_len = choose_block_len(afl, MIN(switch_len, to_end));
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " SWITCH-%s-%u-%u-%u",
+                   "switch", switch_from, switch_to, switch_len);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          u8 *new_buf = afl_realloc(AFL_BUF_PARAM(out_scratch), switch_len);
+          if (unlikely(!new_buf)) { PFATAL("alloc"); }
+
+          /* Backup */
+
+          memcpy(new_buf, out_buf + switch_from, switch_len);
+
+          /* Switch 1 */
+
+          memcpy(out_buf + switch_from, out_buf + switch_to, switch_len);
+
+          /* Switch 2 */
+
+          memcpy(out_buf + switch_to, new_buf, switch_len);
+
+          break;
+
+        }
+
+        // MAX_HAVOC_ENTRY = 64
+        case 57 ... MAX_HAVOC_ENTRY: {
+
+          /* Delete bytes. */
+
+          if (temp_len < 2) { break; }
+
+          /* Don't delete too much. */
+
+          u32 del_len = choose_block_len(afl, temp_len - 1);
+          u32 del_from = rand_below(afl, temp_len - del_len + 1);
+
+#ifdef INTROSPECTION
+          snprintf(afl->m_tmp, sizeof(afl->m_tmp), " DEL-%u-%u", del_from,
+                   del_len);
+          strcat(afl->mutation, afl->m_tmp);
+#endif
+          memmove(out_buf + del_from, out_buf + del_from + del_len,
+                  temp_len - del_from - del_len);
+
+          temp_len -= del_len;
+
+          break;
+
+        }
+
+        default:
+
+          r -= (MAX_HAVOC_ENTRY + 1);
+
+          if (afl->extras_cnt) {
+
+            if (r < 2) {
+
+              /* Use the dictionary. */
+
+              u32 use_extra = rand_below(afl, afl->extras_cnt);
+              u32 extra_len = afl->extras[use_extra].len;
+
+              if (extra_len > temp_len) { break; }
+
+              u32 insert_at = rand_below(afl, temp_len - extra_len + 1);
+#ifdef INTROSPECTION
+              snprintf(afl->m_tmp, sizeof(afl->m_tmp), " EXTRA_OVERWRITE-%u-%u",
+                       insert_at, extra_len);
+              strcat(afl->mutation, afl->m_tmp);
+#endif
+              memcpy(out_buf + insert_at, afl->extras[use_extra].data,
+                     extra_len);
+
+              break;
+
+            } else if (r < 4) {
+
+              u32 use_extra = rand_below(afl, afl->extras_cnt);
+              u32 extra_len = afl->extras[use_extra].len;
+              if (temp_len + extra_len >= MAX_FILE) { break; }
+
+              u8 *ptr = afl->extras[use_extra].data;
+              u32 insert_at = rand_below(afl, temp_len + 1);
+#ifdef INTROSPECTION
+              snprintf(afl->m_tmp, sizeof(afl->m_tmp), " EXTRA_INSERT-%u-%u",
+                       insert_at, extra_len);
+              strcat(afl->mutation, afl->m_tmp);
+#endif
+
+              out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len + extra_len);
+              if (unlikely(!out_buf)) { PFATAL("alloc"); }
+
+              /* Tail */
+              memmove(out_buf + insert_at + extra_len, out_buf + insert_at,
+                      temp_len - insert_at);
+
+              /* Inserted part */
+              memcpy(out_buf + insert_at, ptr, extra_len);
+              temp_len += extra_len;
+
+              break;
+
+            } else {
+
+              r -= 4;
+
+            }
+
+          }
+
+          if (afl->a_extras_cnt) {
+
+            u32 r_cmp = 2;
+
+            if (unlikely(afl->cmplog_binary && afl->queue_cur->is_ascii)) {
+
+              r_cmp = MUTATE_ASCII_DICT >> 1;
+
+            }
+
+            if (r < r_cmp) {
+
+              /* Use the dictionary. */
+
+              u32 use_extra = rand_below(afl, afl->a_extras_cnt);
+              u32 extra_len = afl->a_extras[use_extra].len;
+
+              if (extra_len > temp_len) { break; }
+
+              u32 insert_at = rand_below(afl, temp_len - extra_len + 1);
+#ifdef INTROSPECTION
+              snprintf(afl->m_tmp, sizeof(afl->m_tmp),
+                       " AUTO_EXTRA_OVERWRITE-%u-%u", insert_at, extra_len);
+              strcat(afl->mutation, afl->m_tmp);
+#endif
+              memcpy(out_buf + insert_at, afl->a_extras[use_extra].data,
+                     extra_len);
+
+              break;
+
+            } else if (r < (r_cmp << 1)) {
+
+              u32 use_extra = rand_below(afl, afl->a_extras_cnt);
+              u32 extra_len = afl->a_extras[use_extra].len;
+              if (temp_len + extra_len >= MAX_FILE) { break; }
+
+              u8 *ptr = afl->a_extras[use_extra].data;
+              u32 insert_at = rand_below(afl, temp_len + 1);
+#ifdef INTROSPECTION
+              snprintf(afl->m_tmp, sizeof(afl->m_tmp),
+                       " AUTO_EXTRA_INSERT-%u-%u", insert_at, extra_len);
+              strcat(afl->mutation, afl->m_tmp);
+#endif
+
+              out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len + extra_len);
+              if (unlikely(!out_buf)) { PFATAL("alloc"); }
+
+              /* Tail */
+              memmove(out_buf + insert_at + extra_len, out_buf + insert_at,
+                      temp_len - insert_at);
+
+              /* Inserted part */
+              memcpy(out_buf + insert_at, ptr, extra_len);
+              temp_len += extra_len;
+
+              break;
+
+            } else {
+
+              r -= (r_cmp << 1);
+
+            }
+
+          }
+
+          /* Splicing otherwise if we are still here.
+             Overwrite bytes with a randomly selected chunk from another
+             testcase or insert that chunk. */
+
+          /* Pick a random queue entry and seek to it. */
+
+          u32 tid;
+          do {
+
+            tid = rand_below(afl, afl->queued_items);
+
+          } while (tid == afl->current_entry || afl->queue_buf[tid]->len < 4);
+
+          /* Get the testcase for splicing. */
+          struct queue_entry *target = afl->queue_buf[tid];
+          u32                 new_len = target->len;
+          u8                 *new_buf = queue_testcase_get(afl, target);
+
+          if ((temp_len >= 2 && r % 2) || temp_len + HAVOC_BLK_XL >= MAX_FILE) {
+
+            /* overwrite mode */
+
+            u32 copy_from, copy_to, copy_len;
+
+            copy_len = choose_block_len(afl, new_len - 1);
+            if (copy_len > temp_len) copy_len = temp_len;
+
+            copy_from = rand_below(afl, new_len - copy_len + 1);
+            copy_to = rand_below(afl, temp_len - copy_len + 1);
+
+#ifdef INTROSPECTION
+            snprintf(afl->m_tmp, sizeof(afl->m_tmp),
+                     " SPLICE_OVERWRITE-%u-%u-%u-%s", copy_from, copy_to,
+                     copy_len, target->fname);
+            strcat(afl->mutation, afl->m_tmp);
+#endif
+            memmove(out_buf + copy_to, new_buf + copy_from, copy_len);
+
+          } else {
+
+            /* insert mode */
+
+            u32 clone_from, clone_to, clone_len;
+
+            clone_len = choose_block_len(afl, new_len);
+            clone_from = rand_below(afl, new_len - clone_len + 1);
+            clone_to = rand_below(afl, temp_len + 1);
+
+            u8 *temp_buf = afl_realloc(AFL_BUF_PARAM(out_scratch),
+                                       temp_len + clone_len + 1);
+            if (unlikely(!temp_buf)) { PFATAL("alloc"); }
+
+#ifdef INTROSPECTION
+            snprintf(afl->m_tmp, sizeof(afl->m_tmp),
+                     " SPLICE_INSERT-%u-%u-%u-%s", clone_from, clone_to,
+                     clone_len, target->fname);
+            strcat(afl->mutation, afl->m_tmp);
+#endif
+            /* Head */
+
+            memcpy(temp_buf, out_buf, clone_to);
+
+            /* Inserted part */
+
+            memcpy(temp_buf + clone_to, new_buf + clone_from, clone_len);
+
+            /* Tail */
+            memcpy(temp_buf + clone_to + clone_len, out_buf + clone_to,
+                   temp_len - clone_to);
+
+            out_buf = temp_buf;
+            afl_swap_bufs(AFL_BUF_PARAM(out), AFL_BUF_PARAM(out_scratch));
+            temp_len += clone_len;
+
+          }
+
+          break;
+
+          // end of default
+
+      }
 
     }
 
-    havoc_queued = afl->queued_items;
+    if (common_fuzz_stuff(afl, out_buf, temp_len)) { goto abandon_entry; }
+
+    /* out_buf might have been mangled a bit, so let's restore it to its
+       original size and shape. */
+
+    out_buf = afl_realloc(AFL_BUF_PARAM(out), len);
+    if (unlikely(!out_buf)) { PFATAL("alloc"); }
+    temp_len = len;
+    memcpy(out_buf, in_buf, len);
+
+    /* If we're finding new stuff, let's run for a bit longer, limits
+       permitting. */
+
+    if (afl->queued_items != havoc_queued) {
+
+      if (perf_score <= afl->havoc_max_mult * 100) {
+
+        afl->stage_max *= 2;
+        perf_score *= 2;
+
+      }
+
+      havoc_queued = afl->queued_items;
+
+    }
 
   }
-
-  
 
   new_hit_cnt = afl->queued_items + afl->saved_crashes;
 
