@@ -451,7 +451,8 @@ def havoc_mutation_reset():
     STEP_COUNTER = 0
     EPISODE_WISE_TRANSITIONS = []
 
-
+def fuzz_count(buff):
+    return MAX_STEPS
 
 def havoc_mutation_reward(total_crashes, virgin_bits):
     '''
