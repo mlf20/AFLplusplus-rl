@@ -194,6 +194,7 @@ def havoc_mutation(buf, max_size):
     global TOTAL_STEP_COUNTER
     global ROLLOUT_INFO
     global EPISODE_WISE_TRANSITIONS
+    global TOTAL_EXECUTIONS
     global PAST_STATE
     if STEP_COUNTER == 0:
         episode_starts = np.ones((1,), dtype=bool)
@@ -326,9 +327,7 @@ def havoc_mutation(buf, max_size):
 
     if dones or STEP_COUNTER == MAX_STEPS:
         # now we flush all episode wise info to the 1-D buffer
-        ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
-            ROLLOUTS, EPISODE_WISE_TRANSITIONS, ROLLOUT_INFO
-        )
+
         DONE = True
     #byte_arr = bytearray(gen_output.gen_texts[0].encode('utf-8'))
     #byte_arr=byte_arr[:max_size]
@@ -475,6 +474,8 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     global PREV_VIRGIN_BITS
     global PREV_TOTAL_CRASHES
     global TOTAL_EXECUTIONS
+    global DONE
+    global ROLLOUT_INFO
     global EPISODE_WISE_TRANSITIONS
     #virgin_bits = [int(str(hex(x)), 16) for x in list(virgin_bits)][0]
     #print(total_crashes)
@@ -503,13 +504,17 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     # Update the last transition with correct reward and done
     
     #ROLLOUTS.rewards[ROLLOUTS.pos - 1] = np.array([reward])
-    
-    EPISODE_WISE_TRANSITIONS[STEP_COUNTER - 1].task_reward == reward
-    EPISODE_WISE_TRANSITIONS[STEP_COUNTER - 1].total_reward == reward + EPISODE_WISE_TRANSITIONS[STEP_COUNTER - 1].total_reward
+
+    EPISODE_WISE_TRANSITIONS[STEP_COUNTER - 1].task_reward = reward
+    EPISODE_WISE_TRANSITIONS[STEP_COUNTER - 1].total_reward = reward + EPISODE_WISE_TRANSITIONS[STEP_COUNTER - 1].total_reward
     #ROLLOUTS.action_mask[-1] = torch.FloatTensor([0.0])
 
+
     #ROLLOUTS.action_masks[ROLLOUTS.pos - 1] = np.zeros((1,))
-    if ROLLOUTS.full:
+    if DONE:
+        ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
+            ROLLOUTS, EPISODE_WISE_TRANSITIONS, ROLLOUT_INFO
+        )
         print(ROLLOUTS.rewards)
         next_values = (
                             ROLLOUTS[ROLLOUTS.pos].value
