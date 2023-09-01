@@ -338,6 +338,10 @@ def havoc_mutation(buf, max_size):
     STEP_COUNTER += 1
     TOTAL_STEP_COUNTER += 1
     byte_str = ''.join(TOKENIZER.decode([token for (_,_,_,token) in GEN_OUTPUT[:STEP_COUNTER]])) #.split('\\x')).replace('\\', '')
+    try:
+        byte_str = bytearray.fromhex("".join(byte_str.split('\\x')).replace('\\', ''))
+    except:
+        byte_str = bytearray(byte_str.encode('utf-8'))
     return byte_str
 
 
