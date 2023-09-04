@@ -120,6 +120,22 @@ TOTAL_EXECUTIONS    = 0
 DEVICE              = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 
+def nan_hook(self, inp, output):
+    if not isinstance(output, tuple):
+        outputs = [output]
+    else:
+        outputs = output
+
+    for i, out in enumerate(outputs):
+        nan_mask = torch.isnan(out)
+        if nan_mask.any():
+            print("In", self.__class__.__name__)
+            raise RuntimeError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:",
+                               out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+
+
+
+
 def init(seed):
     """
     Called once when AFLFuzz starts up. Used to seed our RNG.
@@ -147,7 +163,9 @@ def init(seed):
                                'min_length': 1,
                                'max_new_tokens': 86}
         )
-
+    
+    for submodule in AGENT.modules():
+        submodule.register_forward_hook(nan_hook)
     ROLLOUTS = RolloutStorage(
                 MAX_STEPS,
                 OBSERVATION_SPACE,
@@ -563,10 +581,12 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
                 try:
-                    evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
-                        rollout_data.observations, actions)
+                    with torch.autograd.detect_anomaly():
+                        evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
+                            rollout_data.observations, actions)
                 except:
                     full_model = AGENT.get_state_dict()
+                    save_path = path.abspath(path.join(__file__, "../"))+ f'/{SAVE_DIR}'
                     with open(save_path + '/model_state_dict_at_error.pkl', 'wb') as f:
                         pkl.dump(full_model, f)
                     logging.debug(rollout_data.observations)
