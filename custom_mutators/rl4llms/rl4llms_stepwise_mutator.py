@@ -17,7 +17,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # General Imports
 import random
 import os
-
+import logging
 # RL imports
 import gym
 import numpy as np
@@ -37,7 +37,7 @@ from rl4llmXafl_utils import add_to_buffer, linear_schedule, get_policy_kwargs, 
 import os.path as path
 #from stable_baselines3.common.on_policy_algorithm.on_policy_algorithm import *
 from stable_baselines3.common.utils import obs_as_tensor
-
+import pickle as pkl
 from agent.storage import RolloutStorage
 
 # Agent implementation
@@ -111,7 +111,7 @@ RAW_OBSERVATION = None
 # Training loop params
 PREVIOUS_STATE      = None # Unsure if we need this
 TOTAL_STEP_COUNTER  = 0
-#SAVE_FREQ           = 500
+SAVE_FREQ           = 500
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_PPO/'
 TF_WRITER           = None
 PREV_VIRGIN_BITS    = 0
@@ -148,7 +148,6 @@ def init(seed):
                                'max_new_tokens': 86}
         )
 
-
     ROLLOUTS = RolloutStorage(
                 MAX_STEPS,
                 OBSERVATION_SPACE,
@@ -159,6 +158,7 @@ def init(seed):
             )
 
     TF_WRITER = SummaryWriter(log_dir=SAVE_DIR)
+    logging.basicConfig(level=logging.DEBUG, filename=f'{SAVE_DIR}/error.txt')
     print('INIT STARTED')
 
 
@@ -345,6 +345,7 @@ def havoc_mutation(buf, max_size):
         byte_str = bytearray.fromhex("".join(byte_str.split('\\x')).replace('\\', ''))[:max_size]
     except:
         byte_str = bytearray(byte_str.encode('utf-8'))[:max_size]
+    #print(byte_str)
     return byte_str
 
 
@@ -453,11 +454,17 @@ def havoc_mutation_reset():
         "rollout_info/ref_log_prob": [],
         "rollout_info/values": [],
     }
-
+    save_path = path.abspath(path.join(__file__, "../"))+ f'/{SAVE_DIR}'
 
     STEP_COUNTER = 0
     EPISODE_WISE_TRANSITIONS = []
-
+    if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
+        AGENT.get_language_model().save_pretrained(save_path, 'model'+ ".pt")
+        full_model = AGENT.get_state_dict()
+        with open(save_path + '/model_state_dict.pkl', 'wb') as f:
+            pkl.dump(full_model, f)
+            
+    
 def fuzz_count(buff):
     return MAX_STEPS
 
@@ -503,7 +510,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     else:
         reward = -10
 
-    print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
+    print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS), TOTAL_STEP_COUNTER)
 
     # Update the last transition with correct reward and done
     
@@ -519,7 +526,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
         ROLLOUT_INFO, ROLLOUTS = add_to_buffer(
             ROLLOUTS, EPISODE_WISE_TRANSITIONS, ROLLOUT_INFO
         )
-        print(ROLLOUTS.rewards)
         next_values = (
                             ROLLOUTS[ROLLOUTS.pos].value
                             if (ROLLOUTS.pos) < MAX_STEPS
@@ -556,8 +562,18 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                 if isinstance(ACTION_SPACE, spaces.Discrete):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
-                evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
-                    rollout_data.observations, actions)
+                try:
+                    evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
+                        rollout_data.observations, actions)
+                except:
+                    full_model = AGENT.get_state_dict()
+                    with open(save_path + '/model_state_dict_at_error.pkl', 'wb') as f:
+                        pkl.dump(full_model, f)
+                    logging.debug(rollout_data.observations)
+                    logging.debug(actions)
+                    logging.debug(rollout_data.advantages)
+                    logging.exception("Oops:")
+                    exit()
                 values, log_prob, entropy = evaluation_output.values, evaluation_output.log_prob, evaluation_output.entropy
                 values = values.flatten()
                 # Normalize advantage
