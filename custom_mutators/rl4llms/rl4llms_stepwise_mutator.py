@@ -20,6 +20,7 @@ import os
 import logging
 # RL imports
 import gym
+from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
 import numpy as np
 import torch
 import time
@@ -67,11 +68,11 @@ EPISODE_WISE_TRANSITIONS = []
 # Agent Parameters
 CLIP_PARAM          = 0.2
 PAST_STATE          = {}
-PPO_EPOCH           = 4
+PPO_EPOCH           = 2
 NUM_MINI_BATCH      = 1
 VALUE_LOSS_COEF     = 0.5
 ENTROPY_COEF        = 0.01
-LEARNING_RATE       = 0.00001
+LEARNING_RATE       = 0.00000001
 EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
 RECURRENT_POLICY    = False
@@ -125,14 +126,23 @@ def nan_hook(self, inp, output):
         outputs = [output]
     else:
         outputs = output
-
     for i, out in enumerate(outputs):
-        nan_mask = torch.isnan(out)
-        if nan_mask.any():
-            print("In", self.__class__.__name__)
-            raise RuntimeError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:",
-                               out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
-
+        if not isinstance(out, torch.Tensor) and not  isinstance(out, tuple):
+            out = out.to_tuple()[0]
+    
+        if not  isinstance(out, tuple):
+            nan_mask = torch.isnan(out)
+            if nan_mask.any():
+                print("In", self.__class__.__name__)
+                raise RuntimeError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:",
+                            out[nan_mask.nonzero()[:, 0].unique(sorted=True)])
+        else:
+            for j, o in enumerate(out):
+                nan_mask = torch.isnan(o)
+                if nan_mask.any():
+                    print("In", self.__class__.__name__)
+                    raise RuntimeError(f"Found NAN in output {i} at indices: ", nan_mask.nonzero(), "where:",
+                                       o[nan_mask.nonzero()[:, 0].unique(sorted=True)])
 
 
 
@@ -164,8 +174,9 @@ def init(seed):
                                'max_new_tokens': 86}
         )
     
-    for submodule in AGENT.modules():
-        submodule.register_forward_hook(nan_hook)
+    #for submodule in AGENT.modules():
+    #    print(submodule)
+    #    submodule.register_forward_hook(nan_hook)
     ROLLOUTS = RolloutStorage(
                 MAX_STEPS,
                 OBSERVATION_SPACE,
@@ -236,11 +247,8 @@ def havoc_mutation(buf, max_size):
         TOTAL_EXECUTIONS += 1
         byte_str = ''.join(TOKENIZER.decode(
             [token for (_, _, _, token) in GEN_OUTPUT[:STEP_COUNTER]]))  # .split('\\x')).replace('\\', '')
-        try:
-            byte_str = bytearray.fromhex("".join(byte_str.split('\\x')).replace('\\', ''))[:max_size]
-        except:
-            byte_str = bytearray(byte_str.encode('utf-8'))[:max_size]
-        return byte_str
+        byte_arr = str_to_byte(byte_str)[:max_size]
+        return byte_arr
 
     # if all episodes are done, just break and do not continue
     #if np.all(ep_terminated):
@@ -359,13 +367,30 @@ def havoc_mutation(buf, max_size):
     STEP_COUNTER += 1
     TOTAL_STEP_COUNTER += 1
     byte_str = ''.join(TOKENIZER.decode([token for (_,_,_,token) in GEN_OUTPUT[:STEP_COUNTER]])) #.split('\\x')).replace('\\', '')
-    try:
-        byte_str = bytearray.fromhex("".join(byte_str.split('\\x')).replace('\\', ''))[:max_size]
-    except:
-        byte_str = bytearray(byte_str.encode('utf-8'))[:max_size]
+    byte_arr = str_to_byte(byte_str)[:max_size]
     #print(byte_str)
-    return byte_str
+    return byte_arr
 
+
+def str_to_byte(byte_str):
+    hex_list = byte_str.split('\\x')
+    byte_array = b''
+    for entry in hex_list:
+        try:
+            for backslashsplit in entry.split('\\'):
+                try:
+                    if backslashsplit != '':
+                        byteentry = hex(int(backslashsplit, 16))[2:]
+                        if len(byteentry) == 1:
+                            byteentry = f'0{byteentry}'
+                        byte_array += bytes.fromhex(byteentry)
+                except:
+                    byte_array += bytes(backslashsplit.encode('utf-8'))
+        except:
+            byte_array += bytes(entry.encode('utf-8'))
+    if byte_array == b'': # always return something
+        byte_array = bytes(byte_str.encode('utf-8'))
+    return bytearray(byte_array)
 
 def fuzz(buf, add_buf, max_size):
     if add_buf:
@@ -581,13 +606,12 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
                     # Convert discrete action from float to long
                     actions = rollout_data.actions.long().flatten()
                 try:
-                    with torch.autograd.detect_anomaly():
-                        evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
+                    # with torch.autograd.detect_anomaly():
+                    evaluation_output: EvaluateActionsOutput = AGENT.evaluate_actions(
                             rollout_data.observations, actions)
                 except:
                     full_model = AGENT.get_state_dict()
-                    save_path = path.abspath(path.join(__file__, "../"))+ f'/{SAVE_DIR}'
-                    with open(save_path + '/model_state_dict_at_error.pkl', 'wb') as f:
+                    with open(SAVE_DIR + 'model_state_dict_at_error.pkl', 'wb') as f:
                         pkl.dump(full_model, f)
                     logging.debug(rollout_data.observations)
                     logging.debug(actions)
@@ -657,15 +681,21 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
             if not continue_training:
                 break
         ROLLOUTS.reset()
+        TF_WRITER.add_scalar('value_loss_steps', value_loss, TOTAL_STEP_COUNTER)
+        TF_WRITER.add_scalar('value_loss_exec', value_loss, TOTAL_EXECUTIONS)
+        TF_WRITER.add_scalar("train/entropy_loss", np.mean(entropy_losses))
+        TF_WRITER.add_scalar("train/policy_gradient_loss", np.mean(pg_losses))
+        TF_WRITER.add_scalar("train/value_loss", np.mean(value_losses))
+        TF_WRITER.add_scalar("train/approx_kl", np.mean(approx_kl_divs))
+        TF_WRITER.add_scalar("train/clip_fraction", np.mean(clip_fractions))
+        TF_WRITER.add_scalar("train/loss", loss.item())
+
 
 
 
 
     TOTAL_EXECUTIONS += 1
-    if ROLLOUTS.full:
-        TF_WRITER.add_scalar('value_loss_steps', value_loss, TOTAL_STEP_COUNTER)
-        TF_WRITER.add_scalar('value_loss_exec', value_loss, TOTAL_EXECUTIONS)
-
+    
     TF_WRITER.add_scalar('episodic_return_steps', reward, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('bits_covered_steps', virgin_bits, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('crash_found_steps', total_crashes, TOTAL_STEP_COUNTER)
@@ -685,7 +715,9 @@ def introspection():
 
 if __name__ == '__main__':
     init(3)
-
+    #with open('/firmwire/logs/2023-09-04_12-48-12_PPO/model_state_dict_at_error.pkl', 'rb') as f:
+    #    state_dict = pkl.load(f)
+    #AGENT.load_from_dict(state_dict)
     for i in range(1):
         testbyte = bytearray([1, 2, 3, 4])
         havoc_mutation_reset()
