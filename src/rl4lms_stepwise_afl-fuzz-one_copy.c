@@ -1945,6 +1945,37 @@ custom_mutator_stage:
         afl->stage_max = saved_max;
 
       }
+      struct queue_entry *target = NULL;
+      u32                 tid;
+      u8                 *new_buf = NULL;
+      u32                 target_len = 0;
+
+      /* check if splicing makes sense yet (enough entries) */
+      if (likely(!afl->custom_splice_optout &&
+                 afl->ready_for_splicing_count > 1)) {
+
+        /* Pick a random other queue entry for passing to external API
+           that has the necessary length */
+
+        do {
+
+          tid = rand_below(afl, afl->queued_items);
+
+        } while (unlikely(tid == afl->current_entry ||
+
+                          afl->queue_buf[tid]->len < 4));
+
+        target = afl->queue_buf[tid];
+        afl->splicing_with = tid;
+
+        /* Read the additional testcase into a new buffer. */
+        new_buf = queue_testcase_get(afl, target);
+        target_len = target->len;
+
+      }
+
+      u8 *mutated_buf = NULL;
+
       size_t mutated_size =
               el->afl_custom_fuzz(el->data, out_buf, len, &mutated_buf, new_buf,
                                   target_len, max_seed_size);
@@ -1957,40 +1988,30 @@ custom_mutator_stage:
         for (afl->stage_cur = 0; afl->stage_cur < afl->stage_max;
              ++afl->stage_cur) {
 
-          struct queue_entry *target = NULL;
-          u32                 tid;
-          u8                 *new_buf = NULL;
-          u32                 target_len = 0;
 
-          /* check if splicing makes sense yet (enough entries) */
-          if (likely(!afl->custom_splice_optout &&
-                     afl->ready_for_splicing_count > 1)) {
-
-            /* Pick a random other queue entry for passing to external API
-               that has the necessary length */
-
-            do {
-
-              tid = rand_below(afl, afl->queued_items);
-
-            } while (unlikely(tid == afl->current_entry ||
-
-                              afl->queue_buf[tid]->len < 4));
-
-            target = afl->queue_buf[tid];
-            afl->splicing_with = tid;
-
-            /* Read the additional testcase into a new buffer. */
-            new_buf = queue_testcase_get(afl, target);
-            target_len = target->len;
-
-          }
-
-          u8 *mutated_buf = NULL;
-
+          u8    *custom_havoc_buf = NULL;
           size_t new_len = el->afl_custom_havoc_mutation(
               el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
     
+
+          if (unlikely(!custom_havoc_buf)) {
+
+            FATAL("Error in custom_havoc (return %zu)", new_len);
+
+          }
+
+          if (likely(new_len > 0 && custom_havoc_buf)) {
+
+            temp_len = new_len;
+            if (out_buf != custom_havoc_buf) {
+
+              out_buf = afl_realloc(AFL_BUF_PARAM(out), temp_len);
+              if (unlikely(!afl->out_buf)) { PFATAL("alloc"); }
+              memcpy(out_buf, custom_havoc_buf, temp_len);
+
+            }
+
+          }
 
 
           if (unlikely(!mutated_buf)) {
@@ -5893,4 +5914,3 @@ u8 fuzz_one(afl_state_t *afl) {
   return (key_val_lv_1 | key_val_lv_2);
 
 }
-
