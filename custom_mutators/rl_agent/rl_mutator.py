@@ -49,13 +49,13 @@ STEP_COUNTER        = 0
 # Agent Parameters
 CLIP_PARAM          = 0.2
 PPO_EPOCH           = 4
-NUM_MINI_BATCH      = 1
+NUM_MINI_BATCH      = 1   # can play with this to increase it...
 VALUE_LOSS_COEF     = 0.5
 ENTROPY_COEF        = 0.01
 LEARNING_RATE       = 7e-4
 EPSILON             = 1e-5
 MAX_GRAD_NORM       = 0.5
-RECURRENT_POLICY    = False
+RECURRENT_POLICY    = True
 GAMMA               = 0.99
 USE_GAE             = False
 GAE_LAMBDA          = 0.95
@@ -112,7 +112,7 @@ def deinit():
 
     TF_WRITER.close()
 
-    save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
+    save_path = SAVE_DIR
     try:
         os.makedirs(save_path)
     except OSError:
@@ -205,17 +205,27 @@ def havoc_mutation_action(buf):
     if STEP_COUNTER == 0:
          ROLLOUTS.obs[0].copy_(padded_state)
     # Get next action
-    with torch.no_grad():
-        value, action, action_log_prob, recurrent_hidden_states = AGENT.actor_critic.act(
-            ROLLOUTS.obs[STEP_COUNTER], ROLLOUTS.recurrent_hidden_states[STEP_COUNTER],
-            ROLLOUTS.masks[STEP_COUNTER])
-
-    # Add obs info to rollout
     masks = torch.FloatTensor([1.0])
     bad_masks = torch.FloatTensor([1.0])
     reward =  torch.FloatTensor([0.0])
-    ROLLOUTS.insert(padded_state, recurrent_hidden_states, action,
-                            action_log_prob, value, reward, masks, bad_masks)
+
+    if RECURRENT_POLICY:
+        with torch.no_grad():
+            value, action, action_log_prob, recurrent_hidden_states = AGENT.actor_critic.act(
+                ROLLOUTS.obs[STEP_COUNTER].unsqueeze(0), ROLLOUTS.recurrent_hidden_states[STEP_COUNTER].unsqueeze(0),
+                ROLLOUTS.masks[STEP_COUNTER])
+
+        ROLLOUTS.insert(padded_state, recurrent_hidden_states.squeeze(0), action.squeeze(0),
+                        action_log_prob, value.squeeze(0), reward, masks, bad_masks)
+    else:
+        with torch.no_grad():
+            value, action, action_log_prob, recurrent_hidden_states = AGENT.actor_critic.act(
+                ROLLOUTS.obs[STEP_COUNTER], ROLLOUTS.recurrent_hidden_states[STEP_COUNTER],
+                ROLLOUTS.masks[STEP_COUNTER])
+
+        ROLLOUTS.insert(padded_state, recurrent_hidden_states, action,
+                        action_log_prob, value, reward, masks, bad_masks)
+
 
 
     # State cleanup
@@ -241,7 +251,7 @@ def havoc_mutation_reset():
 
     STEP_COUNTER = 0
     if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
-        save_path = os.path.abspath(os.getcwd() + f'/{SAVE_DIR}')
+        save_path = SAVE_DIR
         try:
             os.makedirs(save_path)
         except OSError:
@@ -266,6 +276,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     global PREV_VIRGIN_BITS
     global PREV_TOTAL_CRASHES
     global TOTAL_EXECUTIONS
+    global RECURRENT_POLICY
     #virgin_bits = [int(str(hex(x)), 16) for x in list(virgin_bits)][0]
     #print(total_crashes)
 
@@ -293,11 +304,17 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     ROLLOUTS.rewards[-1] = torch.tensor([reward])
     ROLLOUTS.masks[-1] = torch.FloatTensor([0.0])
 
+    if RECURRENT_POLICY:
+        with torch.no_grad():
+            next_value = AGENT.actor_critic.get_value(
+                ROLLOUTS.obs[-1].unsqueeze(0), ROLLOUTS.recurrent_hidden_states[-1].unsqueeze(0),
+                ROLLOUTS.masks[-1]).detach()
 
-    with torch.no_grad():
-        next_value = AGENT.actor_critic.get_value(
-            ROLLOUTS.obs[-1], ROLLOUTS.recurrent_hidden_states[-1],
-            ROLLOUTS.masks[-1]).detach()
+    else:
+        with torch.no_grad():
+            next_value = AGENT.actor_critic.get_value(
+                ROLLOUTS.obs[-1], ROLLOUTS.recurrent_hidden_states[-1],
+                ROLLOUTS.masks[-1]).detach()
 
     ROLLOUTS.compute_returns(next_value, USE_GAE, GAMMA,
                                  GAE_LAMBDA, USE_PROPER_TIME_LIMITS)

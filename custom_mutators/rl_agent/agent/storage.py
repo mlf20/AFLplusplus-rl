@@ -147,54 +147,57 @@ class RolloutStorage(object):
         #    "to be greater than or equal to the number of "
         #    "PPO mini batches ({}).".format(num_processes, num_mini_batch))
         #num_envs_per_batch = num_processes // num_mini_batch
-        perm = zeros((1))
-        for start_ind in range(0, num_processes):
-            obs_batch = []
-            recurrent_hidden_states_batch = []
-            actions_batch = []
-            value_preds_batch = []
-            return_batch = []
-            masks_batch = []
-            old_action_log_probs_batch = []
-            adv_targ = []
+        #perm = zeros((1))
+        #for start_ind in range(0, num_processes):
+        #obs_batch = []
+        #recurrent_hidden_states_batch = []
+        #actions_batch = []
+        #value_preds_batch = []
+        #return_batch = []
+        #masks_batch = []
+        #old_action_log_probs_batch = []
+        #adv_targ = []
 
-            #for offset in range(1):
-            #ind = [start_ind + offset]
-            obs_batch.append(self.obs[:-1, [start_ind]])
-            recurrent_hidden_states_batch.append(
-                self.recurrent_hidden_states[0:1, [start_ind]])
-            actions_batch.append(self.actions[:, [start_ind]])
-            value_preds_batch.append(self.value_preds[:-1, [start_ind]])
-            return_batch.append(self.returns[:-1, [start_ind]])
-            masks_batch.append(self.masks[:-1, [start_ind]])
-            old_action_log_probs_batch.append(
-                self.action_log_probs[:, [start_ind]])
-            adv_targ.append(advantages[:, [start_ind]])
+        #for offset in range(1):
+        #ind = [start_ind + offset]
+        #start_ind = 0
+        #obs_batch.append(self.obs[:-1])
+        #recurrent_hidden_states_batch.append(
+        #    self.recurrent_hidden_states[0:1])
+        #actions_batch.append(self.actions[:])
+        #value_preds_batch.append(self.value_preds[:-1])
+        #return_batch.append(self.returns[:-1])
+        #masks_batch.append(self.masks[:-1])
+        #old_action_log_probs_batch.append(
+        #    self.action_log_probs[:])
+        #adv_targ.append(advantages[:])
+        yield self.obs[:-1], self.recurrent_hidden_states[0:1], self.actions[:], \
+              self.value_preds[:-1], self.returns[:-1], self.masks[:-1], \
+              self.action_log_probs[:], advantages[:]
+        '''T, N = self.num_steps, 1
+        # These are all tensors of size (T, N, -1)
+        obs_batch = stack(obs_batch, 1)
+        actions_batch = stack(actions_batch, 1)
+        value_preds_batch = stack(value_preds_batch, 1)
+        return_batch = stack(return_batch, 1)
+        masks_batch = stack(masks_batch, 1)
+        old_action_log_probs_batch = stack(
+            old_action_log_probs_batch, 1)
+        adv_targ = stack(adv_targ, 1)
 
-            T, N = self.num_steps, z
-            # These are all tensors of size (T, N, -1)
-            obs_batch = stack(obs_batch, 1)
-            actions_batch = stack(actions_batch, 1)
-            value_preds_batch = stack(value_preds_batch, 1)
-            return_batch = stack(return_batch, 1)
-            masks_batch = stack(masks_batch, 1)
-            old_action_log_probs_batch = stack(
-                old_action_log_probs_batch, 1)
-            adv_targ = stack(adv_targ, 1)
+        # States is just a (N, -1) tensor
+        recurrent_hidden_states_batch = stack(
+            recurrent_hidden_states_batch, 1).view(N, -1)
 
-            # States is just a (N, -1) tensor
-            recurrent_hidden_states_batch = stack(
-                recurrent_hidden_states_batch, 1).view(N, -1)
+        # Flatten the (T, N, ...) tensors to (T * N, ...)
+        obs_batch = _flatten_helper(T, N, obs_batch)
+        actions_batch = _flatten_helper(T, N, actions_batch)
+        value_preds_batch = _flatten_helper(T, N, value_preds_batch)
+        return_batch = _flatten_helper(T, N, return_batch)
+        masks_batch = _flatten_helper(T, N, masks_batch)
+        old_action_log_probs_batch = _flatten_helper(T, N, \
+                old_action_log_probs_batch)
+        adv_targ = _flatten_helper(T, N, adv_targ)
 
-            # Flatten the (T, N, ...) tensors to (T * N, ...)
-            obs_batch = _flatten_helper(T, N, obs_batch)
-            actions_batch = _flatten_helper(T, N, actions_batch)
-            value_preds_batch = _flatten_helper(T, N, value_preds_batch)
-            return_batch = _flatten_helper(T, N, return_batch)
-            masks_batch = _flatten_helper(T, N, masks_batch)
-            old_action_log_probs_batch = _flatten_helper(T, N, \
-                    old_action_log_probs_batch)
-            adv_targ = _flatten_helper(T, N, adv_targ)
-
-            yield obs_batch, recurrent_hidden_states_batch, actions_batch, \
-                value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+        yield obs_batch, recurrent_hidden_states_batch, actions_batch, \
+            value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ'''
