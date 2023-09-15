@@ -2838,7 +2838,7 @@ havoc_stage:
         default:
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            unusable = el->afl_custom_havoc_mutation(el->data, out_buf, temp_len, &custom_havoc_buf, 26);
+            unusable = el->afl_custom_havoc_mutation(el->data, out_buf, temp_len, &custom_havoc_buf, 27);
           }); 
 
           r -= (MAX_HAVOC_ENTRY + 1);

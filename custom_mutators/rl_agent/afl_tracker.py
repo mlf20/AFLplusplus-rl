@@ -210,16 +210,30 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     #print(total_crashes)
 
     # Compute reward
+
+    TOTAL_EXECUTIONS += 1
+    rewards = [0 for _ in range(len(ACTIONS))]
+    if len(rewards) == 0:
+        rewards = [reward]
+        ACTIONS = [26]
+    else:
+        rewards[-1] = reward
+
     if total_crashes > PREV_TOTAL_CRASHES: # New crash found
         reward = 10
         #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
         PREV_TOTAL_CRASHES = total_crashes
-
+        ROLLOUTS[f'EPISODE_{TOTAL_EXECUTIONS}'] = {'END OF EPISODE REWARD': rewards,
+                                                    'STATES':STATES,
+                                                    'ACTIONS': ACTIONS}
     elif int(virgin_bits) > int(PREV_VIRGIN_BITS): # New bits found compared to previous
         reward = 1
         #int_list = [int(str(hex(x)), 16) for x in list(buf)]
         PREV_VIRGIN_BITS = virgin_bits
+        ROLLOUTS[f'EPISODE_{TOTAL_EXECUTIONS}'] = {'END OF EPISODE REWARD': rewards,
+                                                    'STATES':STATES,
+                                                    'ACTIONS': ACTIONS}
     else:
         reward = -10
 
@@ -227,12 +241,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
 
     # Logging
 
-    TOTAL_EXECUTIONS += 1
-    rewards = [0 for _ in range(len(ACTIONS))]
-    rewards[-1] = reward
-    ROLLOUTS[f'EPISODE_{TOTAL_EXECUTIONS}'] = {'END OF EPISODE REWARD': rewards,
-                                                'STATES':STATES,
-                                                'ACTIONS': ACTIONS}
+
     STATES = []
     ACTIONS = []
     STEP_COUNTER = 0
