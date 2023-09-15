@@ -159,7 +159,7 @@ def havoc_mutation_probability():
     '''
     global MAX_ACTIONS
     prob = random.randint(0, MAX_ACTIONS)
-    return prob
+    return 0
 
 def havoc_mutation_action(buf):
     '''
