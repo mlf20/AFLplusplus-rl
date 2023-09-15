@@ -17,7 +17,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # General Imports
 import random
 import os
-
+import pickle as pkl
 # RL imports
 import time
 from torch.utils.tensorboard import SummaryWriter
@@ -41,7 +41,7 @@ ACTIONS = []
 STATES = []
 
 # Training loop params
-
+SAVE_FREQ           = 500
 TOTAL_STEP_COUNTER  = 0
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_AFL/'
 SAVE_TRAJ           = f'afl_state_action_reward.pkl'
@@ -155,7 +155,7 @@ def havoc_mutation_probability():
     @return: The probability (0-100)
     '''
     global MAX_ACTIONS
-    
+
     return 0
 
 def havoc_mutation_action(buf):
@@ -168,7 +168,7 @@ def havoc_mutation_action(buf):
     @rtype: int
     @return: The action (0-26)
     '''
-    return 
+    return
 
 def havoc_mutation_reset():
     '''
@@ -178,7 +178,7 @@ def havoc_mutation_reset():
     global TOTAL_STEP_COUNTER
     global SAVE_DIR
     global SAVE_TRAJ
-    
+
     global STATES
     global ACTIONS
 
@@ -186,7 +186,7 @@ def havoc_mutation_reset():
     STATES = []
     ACTIONS = []
 
-        
+
 
 
 def havoc_mutation_reward(total_crashes, virgin_bits):
@@ -223,15 +223,15 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     else:
         reward = -10
 
-  
+
 
     # Logging
 
     TOTAL_EXECUTIONS += 1
     rewards = [0 for _ in range(len(ACTIONS))]
     rewards[-1] = reward
-    ROLLOUTS[f'EPISODE_{TOTAL_EXECUTIONS}'] = {'END OF EPISODE REWARD': rewards, 
-                                                'STATES':STATES, 
+    ROLLOUTS[f'EPISODE_{TOTAL_EXECUTIONS}'] = {'END OF EPISODE REWARD': rewards,
+                                                'STATES':STATES,
                                                 'ACTIONS': ACTIONS}
     STATES = []
     ACTIONS = []
