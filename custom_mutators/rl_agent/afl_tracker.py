@@ -17,7 +17,6 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # General Imports
 import random
 import os
-import pickle as pkl
 
 # RL imports
 import time
@@ -36,17 +35,14 @@ ROLLOUTS = None
 
 # Environment Parameters
 STATE = []
-MAX_ACTIONS         = 26
-MAX_STEPS           = 86 # Taken from maximum value of mutations that can be done by AFL. Though AFL takes a random number of steps (4,8,16,26,46,86) when doing so
 STEP_COUNTER        = 0
 
 ACTIONS = []
 STATES = []
 
 # Training loop params
-PREVIOUS_STATE      = None # Unsure if we need this
+
 TOTAL_STEP_COUNTER  = 0
-SAVE_FREQ           = 500
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_AFL/'
 SAVE_TRAJ           = f'afl_state_action_reward.pkl'
 TF_WRITER           = None
@@ -88,6 +84,7 @@ def deinit():
     except OSError:
         print(save_path)
     print(save_path)
+
     with open(SAVE_DIR+SAVE_TRAJ, 'wb') as f:
         pkl.dump(ROLLOUTS, f)
 
@@ -158,7 +155,7 @@ def havoc_mutation_probability():
     @return: The probability (0-100)
     '''
     global MAX_ACTIONS
-    prob = random.randint(0, MAX_ACTIONS)
+    
     return 0
 
 def havoc_mutation_action(buf):
@@ -179,7 +176,6 @@ def havoc_mutation_reset():
     '''
     global STEP_COUNTER
     global TOTAL_STEP_COUNTER
-    global SAVE_FREQ
     global SAVE_DIR
     global SAVE_TRAJ
     
@@ -189,16 +185,6 @@ def havoc_mutation_reset():
     STEP_COUNTER = 0
     STATES = []
     ACTIONS = []
-    if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
-        save_path = SAVE_DIR
-        try:
-            os.makedirs(save_path)
-        except OSError:
-            print(save_path)
-        print(save_path)
-    
-    with open(SAVE_DIR+SAVE_TRAJ, 'wb') as f:
-        pkl.dump(ROLLOUTS, f)
 
         
 
@@ -214,6 +200,7 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     global PREV_TOTAL_CRASHES
     global TOTAL_EXECUTIONS
     global STATES
+    global STEP_COUNTER
     global ACTIONS
     #virgin_bits = [int(str(hex(x)), 16) for x in list(virgin_bits)][0]
     #print(total_crashes)
@@ -246,7 +233,9 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     ROLLOUTS[f'EPISODE_{TOTAL_EXECUTIONS}'] = {'END OF EPISODE REWARD': rewards, 
                                                 'STATES':STATES, 
                                                 'ACTIONS': ACTIONS}
-
+    STATES = []
+    ACTIONS = []
+    STEP_COUNTER = 0
     TF_WRITER.add_scalar('episodic_return_steps', reward, TOTAL_STEP_COUNTER)
     TF_WRITER.add_scalar('bits_covered_steps', virgin_bits, TOTAL_STEP_COUNTER)
     #TF_WRITER.add_scalar('value_loss_steps', value_loss, TOTAL_STEP_COUNTER)
@@ -258,15 +247,19 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     #TF_WRITER.add_scalar('action_loss_exec', action_loss, TOTAL_EXECUTIONS)
     TF_WRITER.add_scalar('crash_found_exec', total_crashes, TOTAL_EXECUTIONS)
 
-
+    if TOTAL_STEP_COUNTER % SAVE_FREQ == 0:
+        save_path = SAVE_DIR
+        try:
+            os.makedirs(save_path)
+        except OSError:
+            print(save_path)
+        print(save_path)
+        with open(SAVE_DIR+SAVE_TRAJ, 'wb') as f:
+            pkl.dump(ROLLOUTS, f)
     #ROLLOUTS.after_update()
 
 
 
-
-def introspection():
-    string = ''
-    return string
 
 if __name__ == '__main__':
     init(3)
