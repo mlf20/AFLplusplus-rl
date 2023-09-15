@@ -2829,12 +2829,12 @@ havoc_stage:
                   temp_len - del_from - del_len);
 
           temp_len -= del_len;
-
-          break;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
             unusable = el->afl_custom_havoc_mutation( el->data, out_buf, temp_len, &custom_havoc_buf, 25);
           }); 
+          break;
+
 
         }
 
