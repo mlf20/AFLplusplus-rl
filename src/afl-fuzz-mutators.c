@@ -427,6 +427,7 @@ struct custom_mutator *load_custom_mutator(afl_state_t *afl, const char *fn) {
   if (mutator->afl_custom_init) {
 
     mutator->data = mutator->afl_custom_init(afl, rand_below(afl, 0xFFFFFFFF));
+    mutator->afl_custom_update_bitmap_size(afl->fsrv.real_map_size);
 
   }
 

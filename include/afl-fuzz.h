@@ -348,7 +348,9 @@ enum {
   /* 15 */ PY_FUNC_SPLICE_OPTOUT,
   /* 16 */ PY_FUNC_HAVOC_MUTATION_ACTION,
   /* 17 */ PY_FUNC_HAVOC_MUTATION_RESET,
-  /* 17 */ PY_FUNC_HAVOC_MUTATION_REWARD,
+  /* 18 */ PY_FUNC_HAVOC_MUTATION_REWARD,
+  /* 19 */ PY_FUNC_HAVOC_MUTATION_LOCATION,
+  /* 20 */ PY_FUNC_UPDATE_BITMAP_SIZE,
   PY_FUNC_COUNT
 
 };
@@ -1009,7 +1011,36 @@ struct custom_mutator {
    * @return The action (0-25).
    */
   u8 (*afl_custom_havoc_mutation_action)(void *data, const u8 *buf, size_t buf_size);
+
+
+  /**
+   *  Given a buffer sample return the action
+   *  Return the mutation action that will be taken in the havoc stage of fuzzing
+   *
+   * (Optional)
+   *
+   * @param data pointer returned in afl_custom_init by this custom mutator
+   * @param[in] buf Pointer to the input data to be mutated and the mutated
+   *     output
+   * @param[in] buf_size Size of input data
+   * @return The action (0-25).
+   */
+  u8 (*afl_custom_havoc_mutation_location)(void *data, const u8 *buf, size_t buf_size, size_t mutation_type);
   
+  /**
+   *  Given a buffer sample return the action
+   *  Return the mutation action that will be taken in the havoc stage of fuzzing
+   *
+   * (Optional)
+   *
+   * @param data pointer returned in afl_custom_init by this custom mutator
+   * @param[in] buf Pointer to the input data to be mutated and the mutated
+   *     output
+   * @param[in] buf_size Size of input data
+   * @return The action (0-25).
+   */
+  u8 (*afl_custom_update_bitmap_size)(size_t bitmap_size);
+
   /**
    *  reset the python plugin state
    *
@@ -1119,6 +1150,8 @@ size_t      trim_py(void *, u8 **);
 size_t      havoc_mutation_py(void *, u8 *, size_t, u8 **, size_t);
 u8          havoc_mutation_probability_py(void *);
 u8          havoc_mutation_action_py(void *, const u8 *, size_t);
+u8          havoc_mutation_location_py(void *, const u8 *, size_t, u8);
+void        havoc_mutation_location_py(u8);
 void        havoc_mutation_reset_py(void *);
 void        havoc_mutation_reward_py(void *, u32, u32);
 u8          queue_get_py(void *, const u8 *);

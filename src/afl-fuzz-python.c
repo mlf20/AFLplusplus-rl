@@ -245,6 +245,10 @@ static py_mutator_t *init_py_module(afl_state_t *afl, u8 *module_name) {
         PyObject_GetAttrString(py_module, "havoc_mutation");
     py_functions[PY_FUNC_HAVOC_MUTATION_PROBABILITY] =
         PyObject_GetAttrString(py_module, "havoc_mutation_probability");
+    py_functions[PY_FUNC_HAVOC_MUTATION_LOCATION] =
+        PyObject_GetAttrString(py_module, "havoc_mutation_location");
+    py_functions[PY_FUNC_UPDATE_BITMAP_SIZE] =
+        PyObject_GetAttrString(py_module, "update_bitmap_size");
     py_functions[PY_FUNC_HAVOC_MUTATION_ACTION] =
         PyObject_GetAttrString(py_module, "havoc_mutation_action");
     py_functions[PY_FUNC_HAVOC_MUTATION_RESET] =
@@ -480,6 +484,20 @@ struct custom_mutator *load_custom_mutator_py(afl_state_t *afl,
 
     mutator->afl_custom_havoc_mutation_reward =
         havoc_mutation_reward_py;
+
+  }
+
+  if (py_functions[PY_FUNC_UPDATE_BITMAP_SIZE]) {
+
+    mutator->afl_custom_update_bitmap_size =
+        update_bitmap_size_py;
+
+  }
+
+    if (py_functions[PY_FUNC_HAVOC_MUTATION_LOCATION]) {
+
+    mutator->afl_custom_havoc_mutation_location =
+        havoc_mutation_location_py;
 
   }
 
