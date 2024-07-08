@@ -2113,8 +2113,8 @@ havoc_stage:
 #define MAX_HAVOC_ENTRY 64
 #define MUTATE_ASCII_DICT 64
 
-    u32 r_max, r, unusable;
-  u8    *custom_havoc_buf = NULL;
+  u32 r_max, r;
+  
   r_max = (MAX_HAVOC_ENTRY + 1) + (afl->extras_cnt ? 4 : 0) +
           (afl->a_extras_cnt
                ? (unlikely(afl->cmplog_binary && afl->queue_cur->is_ascii)
@@ -2169,7 +2169,7 @@ havoc_stage:
           if (el->stacked_custom &&
               rand_below(afl, 100) < el->stacked_custom_prob) {
 
-            u8    *custom_havoc_buf = NULL;
+             u8    *custom_havoc_buf = NULL;
             size_t new_len = el->afl_custom_havoc_mutation(
                 el->data, out_buf, temp_len, &custom_havoc_buf, MAX_FILE);
             if (unlikely(!custom_havoc_buf)) {
@@ -2197,9 +2197,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " FLIP_BIT1");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 0);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 0);
           }); 
           FLIP_BIT(out_buf, loc);
           break;
@@ -2214,9 +2215,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING8");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 1);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 1);
           }); 
           out_buf[loc] =
               interesting_8[rand_below(afl, sizeof(interesting_8))];
@@ -2234,9 +2236,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING16");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 2);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 2);
           }); 
 
           *(u16 *)(out_buf + loc) =
@@ -2256,9 +2259,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING16BE");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 3);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 3);
           });
 
           *(u16 *)(out_buf + loc) = SWAP16(
@@ -2278,9 +2282,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING32");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 4);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 4);
           });
 
           *(u32 *)(out_buf + loc) =
@@ -2300,9 +2305,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " INTERESTING32BE");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 5);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 5);
           });
 
           *(u32 *)(out_buf + rand_below(afl, loc)) = SWAP32(
@@ -2320,9 +2326,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH8_");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 6);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 6);
           });
 
           out_buf[loc] -= 1 + rand_below(afl, ARITH_MAX);
@@ -2338,9 +2345,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH8+");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 7);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 7);
           });
           out_buf[loc] += 1 + rand_below(afl, ARITH_MAX);
           break;
@@ -2353,10 +2361,11 @@ havoc_stage:
 
           if (temp_len < 2) { break; }
 
-           
+          
+          u32 loc; 
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 8);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 8);
           });
 #ifdef INTROSPECTION
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16_-%u", loc);
@@ -2375,10 +2384,11 @@ havoc_stage:
           if (temp_len < 2) { break; }
 
           
-          u16 num = 1 + rand_below(afl, ARITH_MAX);
+          
+          u32 loc;u16 num = 1 + rand_below(afl, ARITH_MAX);
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 9);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 9);
           });
 #ifdef INTROSPECTION
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16_BE-%u_%u", loc,
@@ -2386,7 +2396,7 @@ havoc_stage:
           strcat(afl->mutation, afl->m_tmp);
 #endif
           *(u16 *)(out_buf + loc) =
-              SWAP16(SWAP16(*(u16 *)(out_buf + pos)) - num);
+              SWAP16(SWAP16(*(u16 *)(out_buf + loc)) - num);
 
           break;
 
@@ -2399,9 +2409,10 @@ havoc_stage:
           if (temp_len < 2) { break; }
 
           
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 10);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 10);
           });
 #ifdef INTROSPECTION
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ARITH16+-%u", loc);
@@ -2419,9 +2430,10 @@ havoc_stage:
 
           if (temp_len < 2) { break; }
 
+u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 11);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 11);
           });
           u16 num = 1 + rand_below(afl, ARITH_MAX);
 
@@ -2431,7 +2443,7 @@ havoc_stage:
           strcat(afl->mutation, afl->m_tmp);
 #endif
           *(u16 *)(out_buf + loc) =
-              SWAP16(SWAP16(*(u16 *)(out_buf + pos)) + num);
+              SWAP16(SWAP16(*(u16 *)(out_buf + loc)) + num);
 
           break;
 
@@ -2443,9 +2455,10 @@ havoc_stage:
 
           if (temp_len < 4) { break; }
 
+u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 12);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 12);
           });
 
 #ifdef INTROSPECTION
@@ -2464,9 +2477,10 @@ havoc_stage:
 
           if (temp_len < 4) { break; }
 
+u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 13);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 13);
           });
           u32 num = 1 + rand_below(afl, ARITH_MAX);
 
@@ -2476,7 +2490,7 @@ havoc_stage:
           strcat(afl->mutation, afl->m_tmp);
 #endif
           *(u32 *)(out_buf + loc) =
-              SWAP32(SWAP32(*(u32 *)(out_buf + pos)) - num);
+              SWAP32(SWAP32(*(u32 *)(out_buf + loc)) - num);
 
           break;
 
@@ -2489,9 +2503,10 @@ havoc_stage:
           if (temp_len < 4) { break; }
 
           
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 14);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 14);
           });
 
 #ifdef INTROSPECTION
@@ -2510,9 +2525,10 @@ havoc_stage:
 
           if (temp_len < 4) { break; }
 
+u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 15);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 15);
           });
           u32 num = 1 + rand_below(afl, ARITH_MAX);
 
@@ -2522,7 +2538,7 @@ havoc_stage:
           strcat(afl->mutation, afl->m_tmp);
 #endif
           *(u32 *)(out_buf + loc) =
-              SWAP32(SWAP32(*(u32 *)(out_buf + pos)) + num);
+              SWAP32(SWAP32(*(u32 *)(out_buf + loc)) + num);
 
           break;
 
@@ -2538,9 +2554,10 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " RAND8");
           strcat(afl->mutation, afl->m_tmp);
 #endif
+          u32 loc;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-            loc = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 15);
+            loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 16);
           });
           out_buf[loc] ^= 1 + rand_below(afl, 255);
           break;
@@ -2556,9 +2573,10 @@ havoc_stage:
             u32 clone_len = choose_block_len(afl, temp_len);
             u32 clone_from = rand_below(afl, temp_len - clone_len + 1);
             //u32 clone_to = rand_below(afl, temp_len);
+            u32 clone_to;
             LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-              u32 clone_to = el->afl_custom_havoc_location_action(el->data, out_buf, temp_len, &custom_havoc_buf, 15);
+               clone_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 17);
             });
 
 #ifdef INTROSPECTION
@@ -2599,7 +2617,11 @@ havoc_stage:
             /* Insert a block of constant bytes (25%). */
 
             u32 clone_len = choose_block_len(afl, HAVOC_BLK_XL);
-            u32 clone_to = rand_below(afl, temp_len);
+            u32 clone_to;
+            LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              clone_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 18);
+            });
 
 #ifdef INTROSPECTION
             snprintf(afl->m_tmp, sizeof(afl->m_tmp), " CLONE-%s-%u-%u",
@@ -2643,7 +2665,12 @@ havoc_stage:
 
           u32 copy_len = choose_block_len(afl, temp_len - 1);
           u32 copy_from = rand_below(afl, temp_len - copy_len + 1);
-          u32 copy_to = rand_below(afl, temp_len - copy_len + 1);
+          u32 copy_to;
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              copy_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 19);
+            });
+
 
           if (likely(copy_from != copy_to)) {
 
@@ -2667,8 +2694,12 @@ havoc_stage:
           if (temp_len < 2) { break; }
 
           u32 copy_len = choose_block_len(afl, temp_len - 1);
-          u32 copy_to = rand_below(afl, temp_len - copy_len + 1);
-
+          
+          u32 copy_to;
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              copy_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 20);
+          });
 #ifdef INTROSPECTION
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " OVERWRITE_FIXED-%u-%u",
                    copy_to, copy_len);
@@ -2691,7 +2722,12 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " ADDBYTE_");
           strcat(afl->mutation, afl->m_tmp);
 #endif
-          out_buf[rand_below(afl, temp_len)]++;
+          u32 loc;
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 21);
+          });
+          out_buf[loc]++;
           break;
 
         }
@@ -2704,7 +2740,13 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " SUBBYTE_");
           strcat(afl->mutation, afl->m_tmp);
 #endif
-          out_buf[rand_below(afl, temp_len)]--;
+          u32 loc;
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 22);
+          });
+
+          out_buf[loc]--;
           break;
 
         }
@@ -2717,7 +2759,12 @@ havoc_stage:
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " FLIP8_");
           strcat(afl->mutation, afl->m_tmp);
 #endif
-          out_buf[rand_below(afl, temp_len)] ^= 0xff;
+          u32 loc;
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              loc = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 23);
+          });
+          out_buf[loc] ^= 0xff;
           break;
 
         }
@@ -2729,7 +2776,11 @@ havoc_stage:
           /* Switch bytes. */
 
           u32 to_end, switch_to, switch_len, switch_from;
-          switch_from = rand_below(afl, temp_len);
+          
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              switch_from = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 24);
+          });
           do {
 
             switch_to = rand_below(afl, temp_len);
@@ -2775,7 +2826,7 @@ havoc_stage:
         }
 
 
-        case 25: {
+        case 57 ... MAX_HAVOC_ENTRY: {
 
           /* Delete bytes. */
 
@@ -2784,7 +2835,12 @@ havoc_stage:
           /* Don't delete too much. */
 
           u32 del_len = choose_block_len(afl, temp_len - 1);
-          u32 del_from = rand_below(afl, temp_len - del_len + 1);
+          //u32 del_from = rand_below(afl, temp_len - del_len + 1);
+          u32 del_from;
+          LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+              del_from  = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 25);
+          });
 
 #ifdef INTROSPECTION
           snprintf(afl->m_tmp, sizeof(afl->m_tmp), " DEL-%u-%u", del_from,
@@ -2799,11 +2855,7 @@ havoc_stage:
           break;
 
         }
-        case 26: {
-          // adding in a 'do nothing' option
-          break;
-
-        }
+        
 
         default:
 
@@ -2820,7 +2872,12 @@ havoc_stage:
 
               if (extra_len > temp_len) { break; }
 
-              u32 insert_at = rand_below(afl, temp_len - extra_len + 1);
+              //u32 insert_at = rand_below(afl, temp_len - extra_len + 1);
+              u32 insert_at;
+              LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+                  insert_at = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 26);
+              });
 #ifdef INTROSPECTION
               snprintf(afl->m_tmp, sizeof(afl->m_tmp), " EXTRA_OVERWRITE-%u-%u",
                        insert_at, extra_len);
@@ -2838,7 +2895,12 @@ havoc_stage:
               if (temp_len + extra_len >= MAX_FILE) { break; }
 
               u8 *ptr = afl->extras[use_extra].data;
-              u32 insert_at = rand_below(afl, temp_len + 1);
+              //u32 insert_at = rand_below(afl, temp_len + 1);
+              u32 insert_at;
+              LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+                  insert_at = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 27);
+              });
 #ifdef INTROSPECTION
               snprintf(afl->m_tmp, sizeof(afl->m_tmp), " EXTRA_INSERT-%u-%u",
                        insert_at, extra_len);
@@ -2885,7 +2947,12 @@ havoc_stage:
 
               if (extra_len > temp_len) { break; }
 
-              u32 insert_at = rand_below(afl, temp_len - extra_len + 1);
+              // u32 insert_at = rand_below(afl, temp_len - extra_len + 1);
+              u32 insert_at;
+              LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+                  insert_at = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 28);
+              });
 #ifdef INTROSPECTION
               snprintf(afl->m_tmp, sizeof(afl->m_tmp),
                        " AUTO_EXTRA_OVERWRITE-%u-%u", insert_at, extra_len);
@@ -2903,7 +2970,12 @@ havoc_stage:
               if (temp_len + extra_len >= MAX_FILE) { break; }
 
               u8 *ptr = afl->a_extras[use_extra].data;
-              u32 insert_at = rand_below(afl, temp_len + 1);
+              // u32 insert_at = rand_below(afl, temp_len + 1);
+              u32 insert_at;
+              LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+                  insert_at = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 29);
+              });
 #ifdef INTROSPECTION
               snprintf(afl->m_tmp, sizeof(afl->m_tmp),
                        " AUTO_EXTRA_INSERT-%u-%u", insert_at, extra_len);
@@ -2977,8 +3049,11 @@ havoc_stage:
 
             clone_len = choose_block_len(afl, new_len);
             clone_from = rand_below(afl, new_len - clone_len + 1);
-            clone_to = rand_below(afl, temp_len + 1);
-
+            //clone_to = rand_below(afl, temp_len + 1);
+            LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            
+                  clone_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 30);
+            });
             u8 *temp_buf = afl_realloc(AFL_BUF_PARAM(out_scratch),
                                        temp_len + clone_len + 1);
             if (unlikely(!temp_buf)) { PFATAL("alloc"); }
