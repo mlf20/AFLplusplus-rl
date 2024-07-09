@@ -1039,7 +1039,7 @@ struct custom_mutator {
    * @param[in] buf_size Size of input data
    * @return The action (0-25).
    */
-  u8 (*afl_custom_update_bitmap_size)(void *data, size_t bitmap_size);
+  u8 (*afl_custom_update_bitmap_size)(void *data, unsigned long bitmap_size);
 
   /**
    *  reset the python plugin state

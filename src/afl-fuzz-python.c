@@ -866,7 +866,7 @@ u8 havoc_mutation_probability_py(void *py_mutator) {
 
 }
 
-void update_bitmap_size_py(void *py_mutator, u32 bitmap_size) {
+void update_bitmap_size_py(void *py_mutator, unsigned long bitmap_size) {
 
   PyObject *py_args, *py_value;
 
