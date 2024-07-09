@@ -50,9 +50,8 @@ deep_bandit = None
 rollouts = None
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
-deep_bandit.to(device)
 
-optimiser = optim.Adam(deep_bandit.parameters())
+optimiser = None # optim.Adam(deep_bandit.parameters())
 
 
 
@@ -240,8 +239,6 @@ class QBandit(nn.Module):
 
 
  
-def 
-
 
 def init(seed):
     """
@@ -253,14 +250,15 @@ def init(seed):
 
     global deep_bandit
     global rollouts
-
-
+    global device
+    global optimiser
 
     deep_bandit =  QBandit(input_dimension=input_dimension,
                             recurrent=recurrent,
                             hidden_size=hidden_size,
                             weight_size=weight_size,
                             l=l)
+    deep_bandit.to(device)
     rollouts = deque(maxlen=128)
     
     print('INIT STARTED')
@@ -386,6 +384,7 @@ def havoc_mutation_location(buf, havoc_mutation):
     current_context = torch.tensor(int_list)
     location_action, current_mean, current_log_var, current_regularization = get_action(current_context)
     status = 'action'
+    print(location_action)
     return int(location_action)
 
 
@@ -401,9 +400,11 @@ def havoc_mutation_reset():
     global TOTAL_STEP_COUNTER
     global SAVE_FREQ
     global SAVE_DIR
-    global AGENT
-    
-    bandit_loss = update_bandit(rollouts)
+    global deep_bandit
+    global rollouts
+    if len(rollouts) > 0:
+        bandit_loss = update_bandit(rollouts)
+        print('updating...')
     rollouts = deque(maxlen=128)
 
     step_count = 0
@@ -415,7 +416,7 @@ def havoc_mutation_reset():
             print(save_path)
         print(save_path)
 
-        torch.save(AGENT.actor_critic, os.path.join(save_path, 'model'+ ".pt"))
+        torch.save(deep_bandit, os.path.join(save_path, 'model'+ ".pt"))
 
 
 def havoc_mutation_reward(total_crashes, virgin_bits):
@@ -423,7 +424,6 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     Called for each `havoc_mutation`. pass vars for computing the reward function
     '''
 
-    global AGENT
     global GAE_LAMBDA
     global GAMMA
     global USE_GAE
