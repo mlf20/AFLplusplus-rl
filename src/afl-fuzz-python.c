@@ -874,9 +874,9 @@ void update_bitmap_size_py(void *py_mutator, u32 bitmap_size) {
 
   /* bitmap */
   #if PY_MAJOR_VERSION >= 3
-  py_value = PyLong_FromLong(mutation);
+  py_value = PyLong_FromLong(bitmap_size);
   #else
-  py_value = PyInt_FromLong(mutation);
+  py_value = PyInt_FromLong(bitmap_size);
   #endif  
 
   if (!py_value) {

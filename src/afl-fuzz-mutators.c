@@ -133,7 +133,7 @@ void setup_custom_mutators(afl_state_t *afl) {
     }
 
     struct custom_mutator *m = load_custom_mutator_py(afl, module_name);
-    custom_mutator->afl_custom_update_bitmap_size(custom_mutator->data , afl->fsrv.real_map_size);
+    m->afl_custom_update_bitmap_size(m->data , afl->fsrv.real_map_size);
 
     afl->custom_mutators_count++;
     list_append(&afl->custom_mutator_list, m);
