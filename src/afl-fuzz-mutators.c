@@ -140,7 +140,7 @@ void setup_custom_mutators(afl_state_t *afl) {
   }
   LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
     loc = el->afl_custom_update_bitmap_size(el->data, afl->fsrv.real_map_size);
-  }
+  });
 
 #else
   if (afl->afl_env.afl_python_module) {
