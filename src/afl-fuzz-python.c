@@ -941,7 +941,7 @@ u8 havoc_mutation_action_py(void *py_mutator, const u8 *buf, size_t buf_size ) {
 
 }
 
-u8 havoc_mutation_location_py(void *py_mutator, const u8 *buf, size_t buf_size, u32 mutation) {
+u8 havoc_mutation_location_py(void *py_mutator, const u8 *buf, size_t buf_size, u8 mutation) {
 
   PyObject *py_args, *py_value;
 
