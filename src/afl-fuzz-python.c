@@ -893,12 +893,8 @@ void update_bitmap_size_py(void *py_mutator, u32 bitmap_size) {
       py_args);
   Py_DECREF(py_args);
 
-  if (py_value != NULL) {
-
-    long prob = PyLong_AsLong(py_value);
-    Py_DECREF(py_value);
-    return (u8)prob;
-
+  if (py_value != NULL) { 
+    Py_DECREF(py_value); 
   } else {
 
     PyErr_Print();
