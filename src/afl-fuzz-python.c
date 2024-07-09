@@ -889,7 +889,7 @@ void update_bitmap_size_py(void *py_mutator, u32 bitmap_size) {
 
   py_value = PyObject_CallObject(
       ((py_mutator_t *)py_mutator)
-          ->py_functions[PY_FUNC_HAVOC_MUTATION_PROBABILITY],
+          ->py_functions[PY_FUNC_UPDATE_BITMAP_SIZE],
       py_args);
   Py_DECREF(py_args);
 
@@ -975,7 +975,7 @@ u8 havoc_mutation_location_py(void *py_mutator, const u8 *buf, size_t buf_size, 
 
   
   py_value = PyObject_CallObject(
-      ((py_mutator_t *)py_mutator)->py_functions[PY_FUNC_HAVOC_MUTATION_ACTION],py_args);
+      ((py_mutator_t *)py_mutator)->py_functions[PY_FUNC_HAVOC_MUTATION_LOCATION],py_args);
 
   Py_DECREF(py_args);
 
