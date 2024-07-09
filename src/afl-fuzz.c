@@ -2373,6 +2373,10 @@ int main(int argc, char **argv_orig, char **envp) {
   OKF("Writing mutation introspection to '%s'", ifn);
   #endif
 
+  LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+    el->afl_custom_update_bitmap_size(el->data, afl->fsrv.real_map_size);
+  });
+
   while (likely(!afl->stop_soon)) {
 
     cull_queue(afl);
