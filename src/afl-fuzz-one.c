@@ -2697,7 +2697,6 @@ u32 loc;
           
           u32 copy_to;
           LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-            
               copy_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 20);
           });
 #ifdef INTROSPECTION
@@ -3031,7 +3030,10 @@ u32 loc;
             if (copy_len > temp_len) copy_len = temp_len;
 
             copy_from = rand_below(afl, new_len - copy_len + 1);
-            copy_to = rand_below(afl, temp_len - copy_len + 1);
+            //copy_to = rand_below(afl, temp_len - copy_len + 1);
+            LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+                copy_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 30);
+            });
 
 #ifdef INTROSPECTION
             snprintf(afl->m_tmp, sizeof(afl->m_tmp),
@@ -3052,7 +3054,7 @@ u32 loc;
             //clone_to = rand_below(afl, temp_len + 1);
             LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
             
-                  clone_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 30);
+                  clone_to = el->afl_custom_havoc_mutation_location(el->data, out_buf, temp_len, 31);
             });
             u8 *temp_buf = afl_realloc(AFL_BUF_PARAM(out_scratch),
                                        temp_len + clone_len + 1);
