@@ -2057,6 +2057,7 @@ int main(int argc, char **argv_orig, char **envp) {
     afl->clean_trace_custom = ck_realloc(afl->clean_trace_custom, map_size);
     afl->first_trace = ck_realloc(afl->first_trace, map_size);
     afl->map_tmp_buf = ck_realloc(afl->map_tmp_buf, map_size);
+    
 
     if (old_map_size < map_size) {
 
@@ -2372,11 +2373,14 @@ int main(int argc, char **argv_orig, char **envp) {
   setvbuf(afl->introspection_file, NULL, _IONBF, 0);
   OKF("Writing mutation introspection to '%s'", ifn);
   #endif
-
+  printf("... me\n");
+  printf("%lu\n", (unsigned long)map_size);
+  unsigned long map_long = (unsigned long)map_size;
+  printf("... me\n");
   LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-    el->afl_custom_update_bitmap_size(el->data, afl->fsrv.real_map_size);
+  printf("... me\n");
+     el->afl_custom_update_bitmap_size(el->data, map_long);
   });
-
   while (likely(!afl->stop_soon)) {
 
     cull_queue(afl);

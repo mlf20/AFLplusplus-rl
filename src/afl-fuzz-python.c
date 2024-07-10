@@ -871,7 +871,7 @@ void update_bitmap_size_py(void *py_mutator, unsigned long bitmap_size) {
   PyObject *py_args, *py_value;
 
   py_args = PyTuple_New(1);
-
+  printf("am here?\n");  
   /* bitmap */
   #if PY_MAJOR_VERSION >= 3
   py_value = PyLong_FromLong(bitmap_size);
@@ -879,13 +879,14 @@ void update_bitmap_size_py(void *py_mutator, unsigned long bitmap_size) {
   py_value = PyInt_FromLong(bitmap_size);
   #endif  
 
+  printf("am 1?\n");  
   if (!py_value) {
 
     Py_DECREF(py_args);
     FATAL("Failed to convert arguments");
 
   }
-  PyTuple_SetItem(py_args, 1, py_value);
+  PyTuple_SetItem(py_args, 0, py_value);
 
   py_value = PyObject_CallObject(
       ((py_mutator_t *)py_mutator)

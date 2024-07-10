@@ -40,9 +40,9 @@ import queue
 
 
 
-input_dimension=1 
+input_dimension=1
 recurrent=False
-hidden_size=64 
+hidden_size=64
 weight_size=512
 l=1e-4
 
@@ -56,7 +56,7 @@ optimiser = None # optim.Adam(deep_bandit.parameters())
 
 
 current_context = torch.zeros((1000, 1)).to(device)
-mapping ={} 
+mapping ={}
 
 current_context = None
 SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_PPO/'
@@ -97,8 +97,8 @@ class ConcreteDropout(nn.Module):
 
         init_min = np.log(init_min) - np.log(1. - init_min)
         init_max = np.log(init_max) - np.log(1. - init_max)
-        
-        
+
+
         self.p_logit = nn.Parameter(torch.empty(1).uniform_(init_min, init_max))
 
     def forward(self, x, layer):
@@ -108,13 +108,13 @@ class ConcreteDropout(nn.Module):
         sum_of_square = 0
         for param in layer.parameters():
             sum_of_square += torch.sum(torch.pow(param, 2))
-        
+
         weights_regularizer = self.weight_regularizer * sum_of_square / (1 - p)
 
         dropout_regularizer = p * torch.log(p)
         dropout_regularizer += (1. - p) * torch.log(1. - p)
 
-        input_dimensionality = x[0].numel()  
+        input_dimensionality = x[0].numel()
         dropout_regularizer *= self.dropout_regularizer * input_dimensionality
 
         regularization = weights_regularizer + dropout_regularizer
@@ -124,10 +124,10 @@ class ConcreteDropout(nn.Module):
         eps = 1e-7
         temp = 0.1
         unif_noise = torch.rand_like(x)
-        
-        
-        
-        
+
+
+
+
 
 
         drop_prob = (torch.log(p + eps)
@@ -147,8 +147,8 @@ class QBandit(nn.Module):
     def __init__(self, input_dimension=1, recurrent=False, hidden_size=64, weight_size=512,
                  l=1e-4):
         super(QBandit, self).__init__()
-        
-        
+
+
         weight_regularizer = l**2. / input_dimension
         dropout_regularizer = 2. / input_dimension
 
@@ -156,12 +156,12 @@ class QBandit(nn.Module):
         self._hidden_size = hidden_size
         self.global_embeddings = nn.Linear(input_dimension, hidden_size)
 
-        
-        self.W1 = nn.Linear(hidden_size, weight_size, bias=False) 
-        self.W2 = nn.Linear(hidden_size, weight_size, bias=False) 
-        self.vt = nn.Linear(weight_size, 1, bias=False) 
-        self.linear4_mu = nn.Linear(weight_size, 1, bias=False) 
-        self.linear4_logvar = nn.Linear(weight_size, 1, bias=False) 
+
+        self.W1 = nn.Linear(hidden_size, weight_size, bias=False)
+        self.W2 = nn.Linear(hidden_size, weight_size, bias=False)
+        self.vt = nn.Linear(weight_size, 1, bias=False)
+        self.linear4_mu = nn.Linear(weight_size, 1, bias=False)
+        self.linear4_logvar = nn.Linear(weight_size, 1, bias=False)
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.dec = nn.GRUCell(hidden_size, hidden_size)
 
@@ -182,11 +182,11 @@ class QBandit(nn.Module):
                                                 dropout_regularizer=dropout_regularizer)
 
         self.train()
-        
-        
-        
+
+
+
     def forward(self, inputs):
-        if type(inputs) == list:    
+        if type(inputs) == list:
             inputs = torch.cat(inputs)
         x = inputs
         batch_size = x.size(0) if x.dim() > 1 else 1
@@ -199,12 +199,12 @@ class QBandit(nn.Module):
 
         regularization = torch.empty(5, device=global_embeds.device)
         enc_states, rnn_hxs = self.gru(global_embeds)
-        decoder_input = rnn_hxs[-1]  
-        hidden = torch.zeros([batch_size, self._hidden_size]).to(global_embeds.device) 
+        decoder_input = rnn_hxs[-1]
+        hidden = torch.zeros([batch_size, self._hidden_size]).to(global_embeds.device)
         hidden = self.dec(decoder_input, hidden)
         blend1, regularization[0] = self.conc_drop1(enc_states,self.W1)
         blend2, regularization[1] = self.conc_drop2(hidden, self.W2)
-        blend_sum = torch.tanh(blend1 + blend2)  
+        blend_sum = torch.tanh(blend1 + blend2)
 
         out, regularization[2] = self.conc_drop3(blend_sum, self.vt)
 
@@ -216,29 +216,29 @@ class QBandit(nn.Module):
         location = torch.argmax(out)
         mean = mean[location].unsqueeze(0).unsqueeze(0)
         log_var = log_var[location].unsqueeze(0).unsqueeze(0)
-        
-        
+
+
         return torch.argmax(out[:-1]), mean, log_var, regularization
 
 
     def _calculate_loss(self, reward, mean, log_var, regularisation):
-        # discount rewards 
+        # discount rewards
         rewards = []
         R = 0
         for r in reward[::-1]:
             R = r + self.gamma * R
             rewards.insert(0,R)
-        
-        
+
+
         reward = torch.tensor(rewards).to(device).squeeze()
-        
-        
+
+
         precision = torch.exp(-log_var)
         loss = torch.mean(torch.sum(precision * (reward - mean) ** 2 + log_var), 0) + regularisation.sum()
         return loss
 
 
- 
+
 
 def init(seed):
     """
@@ -260,7 +260,7 @@ def init(seed):
                             l=l)
     deep_bandit.to(device)
     rollouts = deque(maxlen=128)
-    
+
     print('INIT STARTED')
 
 
@@ -354,7 +354,8 @@ def update_bandit(minibatch):
 
 def update_bitmap_size(size):
     global total_edges
-    total_crashes = size
+    total_edges = size
+    print('BITMAP SIZE UPDATED')
 
 def havoc_mutation_location(buf, havoc_mutation):
     '''
@@ -366,6 +367,7 @@ def havoc_mutation_location(buf, havoc_mutation):
     @rtype: int
     @return: The action (0-26)
     '''
+    print('pick location')
     global step_count
     global exp_update_step
     global rollouts
@@ -378,17 +380,17 @@ def havoc_mutation_location(buf, havoc_mutation):
 
     step_count += 1
     TOTAL_STEP_COUNTER += 1
-    
-    int_list = [int(str(hex(x)), 16) for x in list(buf)]
-    int_list.append(havoc_mutation)
+
+    int_list = [[int(str(hex(x)), 16)] for x in list(buf)]
+    int_list.append([havoc_mutation])
     current_context = torch.tensor(int_list)
     location_action, current_mean, current_log_var, current_regularization = get_action(current_context)
     status = 'action'
-    print(location_action)
+    #print(location_action)
     return int(location_action)
 
 
-    
+
 
 
 
@@ -403,8 +405,9 @@ def havoc_mutation_reset():
     global deep_bandit
     global rollouts
     if len(rollouts) > 0:
-        bandit_loss = update_bandit(rollouts)
         print('updating...')
+        __import__("IPython").embed()
+        bandit_loss = update_bandit(rollouts)
     rollouts = deque(maxlen=128)
 
     step_count = 0
@@ -417,7 +420,7 @@ def havoc_mutation_reset():
         print(save_path)
 
         torch.save(deep_bandit, os.path.join(save_path, 'model'+ ".pt"))
-
+    print('UPDATED')
 
 def havoc_mutation_reward(total_crashes, virgin_bits):
     '''
