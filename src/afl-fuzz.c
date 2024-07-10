@@ -2373,12 +2373,8 @@ int main(int argc, char **argv_orig, char **envp) {
   setvbuf(afl->introspection_file, NULL, _IONBF, 0);
   OKF("Writing mutation introspection to '%s'", ifn);
   #endif
-  printf("... me\n");
-  printf("%lu\n", (unsigned long)map_size);
   unsigned long map_long = (unsigned long)map_size;
-  printf("... me\n");
   LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
-  printf("... me\n");
      el->afl_custom_update_bitmap_size(el->data, map_long);
   });
   while (likely(!afl->stop_soon)) {

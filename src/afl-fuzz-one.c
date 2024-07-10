@@ -2157,9 +2157,10 @@ havoc_stage:
     snprintf(afl->mutation, sizeof(afl->mutation), "%s HAVOC-%u",
              afl->queue_cur->fname, use_stacking);
 #endif
-
+    printf("..USE STACKING::::.\n");
+    printf("%lu\n", (unsigned long)use_stacking);
     for (i = 0; i < use_stacking; ++i) {
-
+      
       /*
       becomes redundant as will will always use the agent
       if (afl->custom_mutators_count) {

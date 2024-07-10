@@ -64,6 +64,7 @@ SAVE_DIR            = f'logs/{time.strftime("%Y-%m-%d_%H-%M-%S")}_PPO/'
 
 
 reward =  -1
+gamma = 0.9
 total_edges  = None
 exp_update_step = 20
 edges_covered = set()
@@ -223,11 +224,11 @@ class QBandit(nn.Module):
 
     def _calculate_loss(self, reward, mean, log_var, regularisation):
         # discount rewards
+        global gamma
         rewards = []
         R = 0
-        __import__("IPython").embed()
-        for r in reward[:-1]:
-            R = r + self.gamma * R
+        for r in reward.flip(0):
+            R = r + gamma * R
             rewards.insert(0,R)
 
 
@@ -259,7 +260,9 @@ def init(seed):
                             hidden_size=hidden_size,
                             weight_size=weight_size,
                             l=l)
+
     deep_bandit.to(device)
+    optimiser = optim.Adam(deep_bandit.parameters())
     rollouts = deque(maxlen=128)
 
     print('INIT STARTED')
@@ -356,7 +359,7 @@ def update_bandit(minibatch):
 def update_bitmap_size(size):
     global total_edges
     total_edges = size
-    print('BITMAP SIZE UPDATED')
+    #print('BITMAP SIZE UPDATED')
 
 def havoc_mutation_location(buf, havoc_mutation):
     '''
@@ -368,7 +371,7 @@ def havoc_mutation_location(buf, havoc_mutation):
     @rtype: int
     @return: The action (0-26)
     '''
-    print('pick location')
+    #print('pick location')
     global step_count
     global exp_update_step
     global rollouts
@@ -408,8 +411,8 @@ def havoc_mutation_reset():
     global deep_bandit
     global rollouts
     if len(rollouts) > 0:
-        print('updating...')
-        __import__("IPython").embed()
+        #print('updating...')
+        #__import__("IPython").embed()
         bandit_loss = update_bandit(rollouts)
     rollouts = deque(maxlen=128)
 
@@ -423,7 +426,6 @@ def havoc_mutation_reset():
         print(save_path)
 
         torch.save(deep_bandit, os.path.join(save_path, 'model'+ ".pt"))
-    print('UPDATED')
 
 def havoc_mutation_reward(total_crashes, virgin_bits):
     '''
