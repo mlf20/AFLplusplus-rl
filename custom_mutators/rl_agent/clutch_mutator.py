@@ -225,7 +225,8 @@ class QBandit(nn.Module):
         # discount rewards
         rewards = []
         R = 0
-        for r in reward[::-1]:
+        __import__("IPython").embed()
+        for r in reward[:-1]:
             R = r + self.gamma * R
             rewards.insert(0,R)
 
