@@ -386,6 +386,8 @@ def havoc_mutation_location(buf, havoc_mutation):
     int_list.append([havoc_mutation])
     current_context = torch.tensor(int_list)
     location_action, current_mean, current_log_var, current_regularization = get_action(current_context)
+    rollouts.append([torch.tensor([0]), copy(current_mean), copy(current_log_var), copy(current_regularization)])
+
     status = 'action'
     #print(location_action)
     return int(location_action)
@@ -461,8 +463,8 @@ def havoc_mutation_reward(total_crashes, virgin_bits):
     else:
         reward = -1
 
-    rollouts.append([torch.tensor([copy(reward)]), copy(current_mean), copy(current_log_var), copy(current_regularization)])
-
+    #rollouts.append([torch.tensor([copy(reward)]), copy(current_mean), copy(current_log_var), copy(current_regularization)])
+    rollouts[-1][0] = torch.tensor([copy(reward)])
     print(reward, virgin_bits, PREV_VIRGIN_BITS, type(virgin_bits), type(PREV_VIRGIN_BITS))
 
     # Update the last transition with correct reward and done
