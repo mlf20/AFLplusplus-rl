@@ -654,7 +654,15 @@ abort_calibration:
   afl->stage_cur = old_sc;
   afl->stage_max = old_sm;
 
-  if (!first_run) { show_stats(afl); }
+  if (!first_run) { 
+      show_stats(afl); 
+  }else{
+      /*printf() 
+      LIST_FOREACH(&afl->custom_mutator_list, struct custom_mutator, {
+            el->afl_custom_update_bitmap_size(el->data, afl->fsrv.real_map_size);
+        });*/
+
+  }
 
   return fault;
 
