@@ -2191,7 +2191,7 @@ havoc_stage:
       
 
       switch ((r = rand_below(afl, r_max))) {
-
+        printf("r=%lu\n",  (unsigned long)r);
         case 0 ... 3: {
 
           /* Flip a single bit somewhere. Spooky! */

@@ -227,11 +227,12 @@ class QBandit(nn.Module):
         global gamma
         rewards = []
         R = 0
-        for r in reward.flip(0):
-            R = r + gamma * R
-            rewards.insert(0,R)
-
-
+        if reward.dim() > 0:
+            for r in reward.flip(0):
+                R = r + gamma * R
+                rewards.insert(0,R)
+        else:
+            rewards = reward
         reward = torch.tensor(rewards).to(device).squeeze()
 
 
@@ -384,20 +385,20 @@ def havoc_mutation_location(buf, havoc_mutation, length):
 
     step_count += 1
     TOTAL_STEP_COUNTER += 1
-    
-    if len(havoc_mutation) > length:
-        int_list = [] 
-        for x in list(buf): 
-             byte_as_bin = str(bin(int(hex(x), base=16)))[2:-1] 
-             int_list.extend(list(byte_as_bin)) 
+    buf = buf[:length]
+    if len(buf) > length:
+        int_list = []
+        for x in list(buf):
+             byte_as_bin = str(bin(int(hex(x), base=16)))[2:-1]
+             int_list.extend(list(byte_as_bin))
 
-        current_context = torch.tensor(np.asarray(int_list, dtype=int)).unsqueeze(-1)    
+        current_context = torch.tensor(np.asarray(int_list, dtype=int)).unsqueeze(-1)
     else:
-        int_list = [[int(str(hex(x)), 16)] for x in list(buf[:length])]
+        int_list = [[int(str(hex(x)), 16)] for x in list(buf)]
         int_list.append([havoc_mutation])
         current_context = torch.tensor(int_list)
-    __import__("IPython").embed()
-    
+    #__import__("IPython").embed()
+
     location_action, current_mean, current_log_var, current_regularization = get_action(current_context)
     rollouts.append([torch.tensor([0]), copy(current_mean), copy(current_log_var), copy(current_regularization)])
 
