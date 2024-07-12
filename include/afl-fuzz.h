@@ -1150,7 +1150,7 @@ size_t      trim_py(void *, u8 **);
 size_t      havoc_mutation_py(void *, u8 *, size_t, u8 **, size_t);
 u8          havoc_mutation_probability_py(void *);
 u8          havoc_mutation_action_py(void *, const u8 *, size_t);
-u8          havoc_mutation_location_py(void *, const u8 *, size_t, u8);
+u8          havoc_mutation_location_py(void *, const u8 *, size_t, unsigned long, u8);
 void        update_bitmap_size_py(void *, unsigned long);
 void        havoc_mutation_reset_py(void *);
 void        havoc_mutation_reward_py(void *, u32, u32);
