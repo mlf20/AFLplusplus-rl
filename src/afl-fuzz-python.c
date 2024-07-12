@@ -936,12 +936,12 @@ u8 havoc_mutation_action_py(void *py_mutator, const u8 *buf, size_t buf_size ) {
 
 }
 
-u8 havoc_mutation_location_py(void *py_mutator, const u8 *buf, size_t buf_size, u8 mutation) {
+u8 havoc_mutation_location_py(void *py_mutator, const u8 *buf, size_t buf_size, unsigned long length,u8 mutation) {
 
   PyObject *py_args, *py_value;
 
 
-  py_args = PyTuple_New(2);
+  py_args = PyTuple_New(3);
 
   /* buf */
   py_value = PyByteArray_FromStringAndSize(buf, buf_size);
@@ -967,6 +967,21 @@ u8 havoc_mutation_location_py(void *py_mutator, const u8 *buf, size_t buf_size, 
 
   }
   PyTuple_SetItem(py_args, 1, py_value);
+
+    /* length */
+  #if PY_MAJOR_VERSION >= 3
+  py_value = PyLong_FromLong(length);
+  #else
+  py_value = PyInt_FromLong(length);
+  #endif  
+
+  if (!py_value) {
+
+    Py_DECREF(py_args);
+    FATAL("Failed to convert arguments");
+
+  }
+  PyTuple_SetItem(py_args, 2, py_value);
 
   
   py_value = PyObject_CallObject(

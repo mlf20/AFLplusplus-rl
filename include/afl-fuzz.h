@@ -1025,7 +1025,7 @@ struct custom_mutator {
    * @param[in] buf_size Size of input data
    * @return The action (0-25).
    */
-  u8 (*afl_custom_havoc_mutation_location)(void *data, const u8 *buf, size_t buf_size, size_t mutation_type);
+  u8 (*afl_custom_havoc_mutation_location)(void *data, const u8 *buf, size_t buf_size, unsigned long length, size_t mutation_type);
   
   /**
    *  Given a buffer sample return the action

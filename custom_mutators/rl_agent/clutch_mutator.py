@@ -361,7 +361,7 @@ def update_bitmap_size(size):
     total_edges = size
     #print('BITMAP SIZE UPDATED')
 
-def havoc_mutation_location(buf, havoc_mutation):
+def havoc_mutation_location(buf, havoc_mutation, length):
     '''
     Called for each `havoc_mutation`.
     For a given buffer return the mutation action to be taken by AFL.
@@ -384,7 +384,7 @@ def havoc_mutation_location(buf, havoc_mutation):
 
     step_count += 1
     TOTAL_STEP_COUNTER += 1
-
+    __import__("IPython").embed()
     int_list = [[int(str(hex(x)), 16)] for x in list(buf)]
     int_list.append([havoc_mutation])
     current_context = torch.tensor(int_list)
